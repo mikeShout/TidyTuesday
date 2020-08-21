@@ -1,0 +1,187 @@
+---
+title: "Tidy Tuesday Extinct Plants"
+author: "Mike Wehinger"
+date: "18/08/2020"
+always_allow_html: true
+output:
+  md_document:
+    variant: markdown_github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cowplot)
+library(knitr)
+library(kableExtra)
+```
+
+## Extinct Plant Visualization
+
+The International Union for Conservation of Nature (IUCN) collects data on plants thought to be extinct. The data include 500 species that are either extinct or extinct in the wild. Those species extinct in the wild are still in cultivation centers such as botanical gardens.
+
+There are 65 (13%) extinct in wild species and these may be considered 'preserved'. 
+
+This visualization highlights the proportion of preserved species. 
+
+```{r get and wrangle data, include=FALSE}
+
+#Import the data from the tidyTuesday github repository
+plants_wide <- read_csv("https://raw.githubusercontent.com/Z3tt/TidyTuesday/master/data/raw_plants/plants_extinct_wide.csv")
+
+#Shorten some group names
+plants_wide <- plants_wide %>% mutate(group = case_when(
+    group == "Algae" ~ "Algae",
+    group == "Conifer" ~ "Conifer",
+    group == "Cycad" ~ "Cycad",
+    group == "Ferns and Allies" ~ "Ferns",
+    group == "Flowering Plant" ~ "Flower",
+    group == "Mosses" ~ "Mosses",
+    TRUE ~ NA_character_
+  )) 
+
+#shorten some country names so the visualization looks neat
+plants_wide[plants_wide$country == "Saint Helena, Ascension and Tristan da Cunha",]$country = "St. Helena"
+plants_wide[plants_wide$country == "Trinidad and Tobago",]$country = "Trinidad"
+
+#Put Indonesia in Oceania...
+plants_wide[plants_wide$country == "Indonesia",]$continent = "Oceania"
+
+#Clean up date
+plants_wide$year <- as.integer(substr(plants_wide$year_last_seen, nchar(plants_wide$year_last_seen)-3,nchar(plants_wide$year_last_seen) ) )
+
+#Create a pie chart showing % extinct in wild
+pieData <- plants_wide %>% mutate_at(vars(red_list_category), factor) %>% group_by(red_list_category) %>% tally() %>% mutate(percent = n/sum(n))
+
+pie <- ggplot(pieData, aes(x="", y=percent, fill=red_list_category)) +
+    geom_bar(stat="identity", width=1, color="white") +
+    coord_polar("y", start=0) +
+    scale_fill_brewer(palette="Accent", direction=1) +
+    geom_text(aes(label = paste(percent*100, "%", "\n", red_list_category, sep=""), x = 1.3), position = position_stack(vjust = 0.5)) +
+    theme_void() + 
+    theme(legend.position="none") + 
+  ggtitle("Proportion of Preserved Species")
+```
+
+```{r PieChart, echo=FALSE}
+pie
+```
+
+## Heatmaps
+
+The objective is to show which plant groups are extinct and what proportion of them are preserved by continent. 
+
+The heatmap uses color to show which plant groups have an extinction by country of origin. The percent value shows what proportion of plant species have been preserved. 
+
+
+
+```{r heatMap, include=FALSE}
+
+# Prepare data for heatmaps by grouping and calculating % preserved 
+obs <- plants_wide %>% 
+       select(red_list_category, group, country, continent) %>% 
+       count(red_list_category, group, continent, country) %>% 
+       spread(red_list_category, n, fill=0) %>% 
+       rowwise() %>% 
+       mutate(Preserved = sum(`Extinct in the Wild`) / (sum(Extinct)+sum(`Extinct in the Wild`))) %>%
+       arrange(desc(`Extinct in the Wild`), desc(Extinct))
+
+# Prepare data for bar charts by grouping and counting per year
+ch_bar <- plants_wide %>% 
+    select(red_list_category, year, continent) %>% 
+    count(red_list_category, year, continent) %>% 
+    spread(red_list_category, n, fill=0) %>% 
+    arrange(year)
+
+#create a list of regions
+regions <- deframe(count(obs, continent) %>% select(continent))
+
+# Cycle through each region and create a heatmap
+for (c in regions) { 
+
+  # Pick the top 6 countries within their region
+topCountries <- obs %>% 
+  filter(continent == c) %>% 
+  group_by(country) %>% 
+  summarize(n = sum(`Extinct in the Wild`)+sum(Extinct)) %>% 
+  arrange(desc(n)) %>% 
+  slice_head(n=6)
+
+#Create a 6x6 heat map (6 countries and 6 groups of plants)
+assign(paste("ch_", substr(c,1,3), sep=""), 
+       ggplot(obs %>% filter(country %in% topCountries$country) %>% add_row(group="Algae")%>% add_row(group="Conifer")%>% add_row(group="Cycad")%>% add_row(group="Ferns")%>% add_row(group="Flower")%>% add_row(group="Mosses"), 
+        aes(group, country, fill= Preserved)) + 
+        geom_tile() + 
+        scale_fill_gradient(low="lightgreen", high="darkgreen") + 
+        theme_bw() +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1),legend.position="none", axis.title.x=element_blank(), axis.title.y=element_blank(), plot.title = element_text(size = 12)) +
+        geom_text(aes(label = paste(round(Preserved*100, 0), "%", sep="")),size=2) +
+        scale_y_discrete(limits=deframe(select(topCountries, country))))
+
+#Create a bar chart showing preserved species by year
+assign(paste("br_", substr(c,1,3), sep=""), 
+      ggplot(ch_bar %>% filter(continent %in% c), aes(x=year, y=`Extinct in the Wild`)) + 
+      geom_col(stat="identity", fill="darkgreen") + 
+      theme_classic() + 
+      theme(axis.title.x=element_blank(), axis.title.y=element_blank(),axis.text.y=element_blank())+ylim(0,15) +
+      ggtitle(c))
+}
+
+plots <-  plot_grid(
+    plot_grid(br_Afr, ch_Afr, nrow=2, ncol=1,rel_heights = c(1.5, 2)),
+    plot_grid(br_Sou, ch_Sou, nrow=2, ncol=1,rel_heights = c(1.5, 2)),
+    plot_grid(br_Nor, ch_Nor, nrow=2, ncol=1,rel_heights = c(1.5, 2)),
+    plot_grid(br_Asi, ch_Asi, nrow=2, ncol=1,rel_heights = c(1.5, 2)),
+    plot_grid(br_Oce, ch_Oce, nrow=2, ncol=1,rel_heights = c(1.5, 2)),
+    plot_grid(br_Eur, ch_Eur, nrow=2, ncol=1,rel_heights = c(1.5, 2)),
+  ncol=3, nrow=2)
+
+ggsave("plots.png",plots)
+```
+
+**The proportion of extinct plant species still in cultivation centers such as botanical gardens**
+```{r displayHeatMap,echo=FALSE}
+plots
+```
+
+Observations
+
+* Flowering plants are observed as extinct across all continents and many of these are preserved in some way
+* **Cycads** are more prominent in South Africa with 50% of extinct species cultivated in conservation centers
+* Bermuda  is preserving **ferns** 
+
+## Chi Squared Test
+
+A chi-square test can show if there is an even preservation result across plant groups. The table of chi-squared residuals highlights that,
+
+* Cycads, as a plant group, predominate the preserved extinct species
+* Mosses and algae species are perhaps underrepresented as a preserved group
+
+```{r chisq, echo=FALSE, warning=FALSE, include=FALSE}
+
+observations <- plants_wide %>% select(red_list_category, group) %>% mutate_at(vars(red_list_category,group), factor) %>% count(red_list_category, group) %>% spread(red_list_category, n, fill=0) 
+
+#ownames(observations) = observations$red_list_category
+rownames(observations) = observations$group
+
+
+chisq <- chisq.test(as.data.frame(observations)[-1])
+contrib <- 100*chisq$residuals^2/chisq$statistic
+
+```
+Observed
+```{r obs, echo=FALSE}
+kable(chisq$observed) %>% kable_styling(full_width = F)
+```
+Expected
+```{r exp, echo=FALSE}
+kable(chisq$expected) %>% kable_styling(full_width = F)
+```
+Residuals
+```{r res, echo=FALSE}
+kable(round(chisq$residuals,3)) %>% kable_styling(full_width = F)
+```
+% contribution to test statistic
+```{r rescontribution, echo=FALSE}
+kable(round(contrib,3)) %>% kable_styling(full_width = F)
+```
