@@ -1,0 +1,131 @@
+---
+title: "Chopped"
+author: "Mike Wehinger"
+date: "25/08/2020"
+always_allow_html: true
+output:
+  md_document:
+    variant: markdown_github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#load necessary libraries
+library(tidyverse)
+library(tidytext)
+library(cowplot)
+
+#Load data
+chopped <- readr::read_tsv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-08-25/chopped.tsv')
+
+#separate ingredient list by commas
+ingredients <- chopped[,c(1:2,4,11:13)] %>% separate(appetizer, into=c('app1', 'app2', 'app3', 'app4'), sep=",") %>% separate(entree, into=c('ent1', 'ent2', 'ent3', 'ent4'), sep=",") %>% separate(dessert, into=c('des1', 'des2', 'des3', 'des4'), sep=",")
+
+# Create charts for the top ingrdients in each meal type
+AppChart <- gather(ingredients, key="col", value="individualIngredient", app1, app2, app3 , app4) %>% drop_na() %>%
+  count(individualIngredient, name="count", sort = TRUE)  %>% 
+  slice_head(n=10) %>% 
+  arrange(count) %>% 
+  mutate(name=factor(individualIngredient, levels=individualIngredient)) %>% 
+  ggplot(aes(x=name, y=count, fill=individualIngredient)) + 
+    geom_bar(stat = "identity",color="darkgrey", fill="#03B6C9",width = .3) + # #035CC9 
+    coord_flip()+theme(legend.position="none") + ylab("Appearances") + 
+    xlab("Ingredient")+ theme_classic() + scale_y_continuous(breaks = seq(0, 12, by = 4)) +
+    ggtitle("Appetizers")
+
+entChart <- gather(ingredients, key="col", value="individualIngredient", ent1, ent2, ent3 , ent4) %>%
+  count(individualIngredient, name="count", sort = TRUE) %>% 
+  drop_na() %>% slice_head(n=10) %>% 
+  arrange(count) %>% 
+  mutate(name=factor(individualIngredient, levels=individualIngredient)) %>% 
+  ggplot(aes(x=name, y=count, fill=individualIngredient)) + 
+    geom_bar(stat = "identity",color="darkgrey", fill="#B44131",width = .3) +
+    coord_flip()+theme(legend.position="none") + ylab("") + 
+    xlab("")+ theme_classic() + scale_y_continuous(breaks = seq(0, 12, by = 4)) +
+    ggtitle("Entrées") 
+
+desChart <- gather(ingredients, key="col", value="individualIngredient", des1, des2, des3 , des4) %>%
+  count(individualIngredient, name="count", sort = TRUE) %>% 
+  drop_na() %>% slice_head(n=10) %>% 
+  arrange(count) %>% 
+  mutate(name=factor(individualIngredient, levels=individualIngredient)) %>% 
+  ggplot(aes(x=name, y=count, fill=individualIngredient)) + 
+    geom_bar(stat = "identity",color="darkgrey", fill="#D19319",width = .3) +
+    coord_flip()+theme(legend.position="none") + ylab("") + 
+    xlab("")+ theme_classic() + scale_y_continuous(breaks = seq(0, 12, by = 4)) +
+    ggtitle("Desserts") 
+
+plots <- plot_grid(AppChart, entChart,desChart, nrow=1, ncol=3)
+
+```
+
+## Chopped Visualization
+
+The ingredients that appear most often in Chopped episodes
+
+```{r topPlots, echo=FALSE}
+plots 
+```
+
+A sample of ingredient combinations and their corresponding episode IMDB ratings 
+
+```{r comboPlots, echo=FALSE, warning=FALSE}
+
+#Create combinations
+ingredients$appCombo1 <- paste(ingredients$app1, ingredients$app2, sep= " + ")
+ingredients$appCombo2 <- paste(ingredients$app1, ingredients$app3, sep= " + ")
+ingredients$appCombo3 <- paste(ingredients$app1, ingredients$app4, sep= " + ")
+ingredients$appCombo4 <- paste(ingredients$app2, ingredients$app3, sep= " + ")
+ingredients$appCombo5 <- paste(ingredients$app2, ingredients$app4, sep= " + ")
+ingredients$appCombo6 <- paste(ingredients$app3, ingredients$app4, sep= " + ")
+
+ingredients$entCombo1 <- paste(ingredients$ent1, ingredients$ent2, sep= " + ")
+ingredients$entCombo2 <- paste(ingredients$ent1, ingredients$ent3, sep= " + ")
+ingredients$entCombo3 <- paste(ingredients$ent1, ingredients$ent4, sep= " + ")
+ingredients$entCombo4 <- paste(ingredients$ent2, ingredients$ent3, sep= " + ")
+ingredients$entCombo5 <- paste(ingredients$ent2, ingredients$ent4, sep= " + ")
+ingredients$entCombo6 <- paste(ingredients$ent3, ingredients$ent4, sep= " + ")
+
+ingredients$desCombo1 <- paste(ingredients$des1, ingredients$des2, sep= " + ")
+ingredients$desCombo2 <- paste(ingredients$des1, ingredients$des3, sep= " + ")
+ingredients$desCombo3 <- paste(ingredients$des1, ingredients$des4, sep= " + ")
+ingredients$desCombo4 <- paste(ingredients$des2, ingredients$des3, sep= " + ")
+ingredients$desCombo5 <- paste(ingredients$des2, ingredients$des4, sep= " + ")
+ingredients$desCombo6 <- paste(ingredients$des3, ingredients$des4, sep= " + ")
+
+combos <- rbind(combos <- select(ingredients, episode_rating, appCombo1, appCombo2, appCombo3, appCombo4, appCombo5, appCombo6) %>% 
+          pivot_longer(cols = c('appCombo1', 'appCombo2', 'appCombo3', 'appCombo4', 'appCombo5', 'appCombo6'), names_to = 'combo'),select(ingredients, episode_rating, entCombo1, entCombo2, entCombo3, entCombo4, entCombo5, entCombo6) %>% 
+          pivot_longer(cols = c('entCombo1', 'entCombo2', 'entCombo3', 'entCombo4', 'entCombo5', 'entCombo6'), names_to = 'combo'),select(ingredients, episode_rating, desCombo1, desCombo2, desCombo3, desCombo4, desCombo5, desCombo6) %>% 
+          pivot_longer(cols = c('desCombo1', 'desCombo2', 'desCombo3', 'desCombo4', 'desCombo5', 'desCombo6'), names_to = 'combo'))%>% drop_na() %>%slice_sample(n=20)
+
+combos <- combos %>% mutate(combo = case_when(
+  substr(combos$combo,1,3) == "app" ~ "Appetizers",
+  substr(combos$combo,1,3) == "ent" ~ "Entrées",
+  substr(combos$combo,1,3) == "des" ~ "Desserts"))
+
+combos <- combos[order(combos$episode_rating), ]  # sort
+combos$value <- factor(combos$value, levels = combos$value)
+
+comboChart <- ggplot(combos, aes(x=value, y=episode_rating, label=episode_rating, color=combo)) + 
+    geom_point(stat='identity', size=7)+
+    scale_color_manual(name = "Meal Part", values = c("Appetizers" = "#03B6C9", "Entrées" = "#B44131", "Desserts" = "#D19319"))  +
+    geom_segment(aes(y = mean(combos$episode_rating), 
+                     x = value, 
+                     yend = episode_rating, 
+                     xend = value), 
+                 color = "darkgrey") +
+    geom_text(color="black", size=3.0) +
+    ylim(min(combos$episode_rating), max(combos$episode_rating)) +
+    coord_flip() + theme_classic()+ ylab("Episode Rating") + 
+    xlab("Ingredient Combinations")+theme(legend.position="top")
+
+comboChart
+
+```
+
+```{r grpahOption, echo=FALSE, warning=FALSE,include=FALSE}
+
+ggsave("plots.png",plot_grid(plots, comboChart, nrow=2, ncol=1,rel_heights = c(1.0, 2))) 
+
+
+```
