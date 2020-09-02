@@ -2,7 +2,9 @@
 title: "Crop Yields"
 author: "Mike Wehinger"
 date: "01/09/2020"
-output: html_document
+output:
+  md_document:
+    variant: markdown_github
 ---
 
 ```{r setup, include=FALSE}
