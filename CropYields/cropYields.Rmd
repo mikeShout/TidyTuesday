@@ -1,0 +1,76 @@
+---
+title: "Crop Yields"
+author: "Mike Wehinger"
+date: "01/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ** Load libraries...
+library(tidyverse)
+
+# ** Get the data...
+
+key_crop_yields <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/key_crop_yields.csv')
+
+#fertilizer <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/cereal_crop_yield_vs_fertilizer_application.csv')
+#tractors <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/cereal_yields_vs_tractor_inputs_in_agriculture.csv')
+#land_use <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/land_use_vs_yield_change_in_cereal_production.csv')
+#arable_land <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-09-01/arable_land_pin.csv')
+
+# ** Subset and reshape the data to show yield, crop, and year for selected Australian crops...
+key_crop_yields <- key_crop_yields %>% 
+    filter(Code=="AUS") %>% 
+    pivot_longer(cols = 4:last_col(),
+                 names_to = "crop", 
+                 values_to = "crop_production") %>% 
+    mutate(crop = str_remove_all(crop, " \\(tonnes per hectare\\)")) %>% 
+    set_names(nm = names(.) %>% tolower())  %>% 
+    filter(crop == "Potatoes" | crop == "Bananas" | crop ==  "Maize" | crop ==  "Rice" | crop ==  "Soybeans") %>%
+    #drop_na() %>% 
+    arrange(crop, year)
+
+# ** Add % change, upper and lower control limit calculations to the tibble... 
+
+key_crop_yields <- key_crop_yields %>%  group_by(crop) %>%
+    mutate(pct_change = (crop_production - lag(crop_production))/lag(crop_production)*100) %>% filter(year > 1961)
+
+key_crop_yields <- key_crop_yields %>% group_by(crop) %>%
+  mutate(
+  mean=mean(pct_change), 
+  sd = sd(pct_change), 
+  LCL = mean-(sd*3), 
+  UCL = mean+(sd*3))
+
+# ** Convert crop into factors and arange in a specific order...
+key_crop_yields$cropF <- factor(key_crop_yields$crop, levels=c("Soybeans", "Maize", "Rice", "Bananas", "Potatoes"))
+key_crop_yields$cropF <- relevel(key_crop_yields$cropF, "Soybeans", "Maize", "Rice", "Bananas", "Potatoes")
+
+# ** Create plot
+plot <-ggplot(key_crop_yields, aes(x=year, y=pct_change, group=cropF)) +
+    facet_wrap(~ cropF, ncol=5) +
+    geom_line(show.legend = FALSE,lwd=.75, color="DarkGreen") + geom_line(aes(x=year, y=UCL), color="Blue", lwd=.4)+
+    geom_line(aes(x=year, y=LCL), color="Blue", lwd=.4) + theme_minimal() + theme(axis.text.x = element_text(angle = 90))+ 
+    ylab("% Change in Yield") + 
+    xlab("Year")
+
+# ** Create Annotations...
+plot <- plot + 
+  geom_label(data=filter(key_crop_yields, cropF=="Bananas", year==2001), size=3, label=paste("Year: 2001", "\n", "Yield: 59.7%"),nudge_x=-15, nudge_y = 16)+
+  geom_curve(data=filter(key_crop_yields, cropF=="Bananas", year==2001),x = 1985, y = 68, xend=1999, yend=60,curvature = .5, color="burlywood", lwd=.5, arrow = arrow(length = unit(1, "mm")))
+
+plot <- plot + 
+  geom_label(data=filter(key_crop_yields, cropF=="Maize", year==1984), size=3, label=paste("Year: 1984", "\n", "Yield: 60.7%"),nudge_x=15, nudge_y = 16) + 
+  geom_curve(data=filter(key_crop_yields, cropF=="Maize", year==1984),x = 2000, y = 68, xend=1985, yend=61,curvature = -.5, color="burlywood", lwd=.5, arrow = arrow(length = unit(1, "mm")))
+  
+plot <- plot +labs(caption = "Source: Our World in Data (https://ourworldindata.org/crop-yields)")
+
+```
+
+### Australian crop yields
+This chart shows the percent change in yield from year to year for selected crops in Australia. The horizontal blue lines mark three standard deviations from the average yearly yield.  
+```{r plot, echo=FALSE, warning=FALSE}
+plot
+```
