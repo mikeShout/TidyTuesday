@@ -1,0 +1,129 @@
+---
+title: "NCAA Women's Basketball Tournament Analysis"
+author: "Mike Wehinger"
+date: "12 October 2020"
+output:
+  md_document:
+    variant: markdown_github
+---
+
+```{r setup, include=FALSE, echo=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plotly)
+### Load & clean data (the first time) and save as a csv for future loads. 
+  # raw_df <- read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/ncaa-womens-basketball-tournament/ncaa-womens-basketball-tournament-history.csv")
+
+  # clean_tourn <- raw_df %>% 
+  #   janitor::clean_names() %>% 
+  #   mutate(across(c(seed, conf_w:conf_percent, full_percent), parse_number))
+
+  # clean_tourn %>% 
+  #   write_csv("tourny.csv")
+
+# Get Data
+tourny <- read_csv("tourny.csv")
+
+#Convert Finishing round indicator to a number 
+tourny$finRound <- case_when(
+  tourny$tourney_finish == "Champ" ~ 7,
+  tourny$tourney_finish == "N2nd" ~ 6,
+  tourny$tourney_finish == "NSF" ~ 5,
+  tourny$tourney_finish == "RF" ~ 4,
+  tourny$tourney_finish == "RSF" ~ 3,
+  tourny$tourney_finish == "2nd" ~ 2,
+  tourny$tourney_finish == "1st" ~ 1,)
+
+# Remove rows where there is no finih round data
+tourny <- tourny %>% drop_na(finRound) %>% drop_na(seed)
+
+# Create a reference table for counts of teams that finish in each round. This will be used for calculating probabilities...
+RoundCounts <- tourny %>% group_by(finRound) %>% summarize(RoundFreq=n())
+
+#Calculate probabilities of each seed making it to their respective final rounds
+scatterData <- tourny %>% group_by(seed, finRound) %>% summarize(freq = n()) %>% arrange(finRound) %>% left_join(RoundCounts) %>% mutate(prob = (round((freq / RoundFreq)*100,1)))
+
+#Format the probability for the chart 
+scatterData[scatterData$prob >=1,]$prob <- round(scatterData[scatterData$prob >=1,]$prob,0)
+
+# Highlight teams that have overcome low odds aka cinderellas
+scatterData$cinderella <- case_when(scatterData$prob < 4 & scatterData$finRound > 2 ~ "Cinderella", TRUE ~ "")
+
+#highlight certain teams
+a <- list(
+    x = tourny[tourny$seed == 11 & tourny$finRound == 4,]$finRound,
+    y = tourny[tourny$seed == 11 & tourny$finRound == 4,]$seed,
+    text = paste(tourny[tourny$seed == 11 & tourny$finRound == 4,]$school,", ",tourny[tourny$seed == 11 & tourny$finRound == 4,]$year,sep="" ),
+    xref = "x",
+    yref = "y",
+    showarrow = TRUE,
+    arrowhead = 4,
+    ax = 20,
+    ay = -40
+)
+
+b <- list(
+    x = tourny[tourny$seed == 9 & tourny$finRound == 5,]$finRound,
+    y = tourny[tourny$seed == 9 & tourny$finRound == 5,]$seed,
+    text = paste(tourny[tourny$seed == 9 & tourny$finRound == 5,]$school,", ",tourny[tourny$seed == 9 & tourny$finRound == 5,]$year,sep="" ),
+    xref = "x",
+    yref = "y",
+    showarrow = TRUE,
+    arrowhead = 4,
+    ax = 20,
+    ay = -40
+)
+
+c <- list(
+    x = tourny[tourny$seed == 5 & tourny$finRound == 6,]$finRound,
+    y = tourny[tourny$seed == 5 & tourny$finRound == 6,]$seed,
+    text = paste(tourny[tourny$seed == 5 & tourny$finRound == 6,]$school,", ",tourny[tourny$seed == 5 & tourny$finRound == 6,]$year,sep="" ),
+    xref = "x",
+    yref = "y",
+    showarrow = TRUE,
+    arrowhead = 4,
+    ax = 20,
+    ay = -40
+)
+
+d <- list(
+    x = scatterData$finRound,
+    y = scatterData$seed,
+    text = scatterData$prob,
+    xref = "x",
+    yref = "y",
+    textfont = list(color = '#000000', size = 3),
+    showarrow = F,
+    arrowhead = 4,
+    ax = 0,
+    ay = 0
+)
+
+fig <- scatterData %>% plot_ly(x = ~finRound, y = ~seed,
+                        colors = c("blue", "coral2"), 
+                        color = ~cinderella,
+                        marker = list(symbol = "square-open", size=18, line = list(color = 'rgba(10, 10, 10, .5)',width = 1)), 
+                        text=paste("Seed: ", scatterData$seed, "\n", "Round: ", scatterData$finRound, "\n", "prob: ", scatterData$prob,"%", sep=""),hoverinfo = 'text',showlegend = FALSE)
+
+fig <- fig %>% layout(annotations = a) %>% layout(annotations = b)%>% layout(annotations = c)%>% layout(annotations = d)%>% layout(title = 'NCAAW Tournament Probabilities',xaxis = list(title = paste("Final Round", "\n","( 1=1st Round, 7 = Championship)", sep="")),yaxis = list(title = "Seed"))
+
+```
+
+## Seed probabilities
+
+The chart below shows the probabilities of a team finishing in each round based on their seed. For example,
+
+1. There is a 76% chance that a number one seeded team will when the championship (round 7)
+
+2. There is a .1% chance that a number one seeded team will exit the tournament in round one. 
+
+The pink highlighted points show the Cinderella teams. These are high seeded teams that make it deep into the tournament. These scenarios have a less than 4% chance of occurring.   
+
+![](`NCAAWp.png`)
+
+```{r SeedChart, echo=FALSE, warning=FALSE,message = FALSE}
+#fig
+
+
+```
+
