@@ -14,4 +14,4 @@ The pink highlighted points show the Cinderella teams. These are high
 seeded teams that make it deep into the tournament. These scenarios have
 a less than 4% chance of occurring.
 
-![](%60NCAAWp.png%60)
+![](NCAAWp.png)
