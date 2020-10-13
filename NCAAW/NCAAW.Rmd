@@ -2,9 +2,9 @@
 title: "NCAA Women's Basketball Tournament Analysis"
 author: "Mike Wehinger"
 date: "12 October 2020"
+always_allow_html: true
 output:
-  md_document:
-    variant: markdown_github
+  md_document
 ---
 
 ```{r setup, include=FALSE, echo=FALSE, warning=FALSE}
@@ -119,10 +119,9 @@ The chart below shows the probabilities of a team finishing in each round based 
 
 The pink highlighted points show the Cinderella teams. These are high seeded teams that make it deep into the tournament. These scenarios have a less than 4% chance of occurring.   
 
-![](`NCAAWp.png`)
 
 ```{r SeedChart, echo=FALSE, warning=FALSE,message = FALSE}
-#fig
+fig
 
 
 ```
