@@ -121,8 +121,8 @@ The pink highlighted points show the Cinderella teams. These are high seeded tea
 
 
 ```{r SeedChart, echo=FALSE, warning=FALSE,message = FALSE}
-fig
-
+#fig
+knitr::include_graphics("NCAAWp.png")
 
 ```
 
