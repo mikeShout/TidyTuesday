@@ -1,0 +1,12 @@
+name: WindFarmProject
+title: WindFarmProject
+username:
+account: mikeshout
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3110153
+bundleId: 3790190
+url: https://mikeshout.shinyapps.io/WindFarmProject/
+when: 1603853152.97383
+asMultiple: FALSE
+asStatic: FALSE
