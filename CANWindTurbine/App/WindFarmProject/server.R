@@ -14,10 +14,11 @@ library(plotly)
 
 WF_Map <- read.csv("CAN_WindFarm.csv")
 
-# Fix year data
+# Fix/clean year data
 WF_Map <- WF_Map %>% mutate(year = case_when(
         str_detect(commissioning_date, "[/....]") ~ str_sub(commissioning_date, -4), TRUE ~ commissioning_date))
 
+WF_Map$project_name <- gsub("[^[:alnum:]]", "", WF_Map$project_name)
 
 #ProjChoices <- WF_Map %>% group_by(project_name) %>% summarize(n = n()) %>% arrange(desc(n)) %>% mutate(item = paste(project_name," (", n, ")", sep="")) %>% select(c("project_name", "item"))
 #manuChoices <- WF_Map %>% group_by(manufacturer) %>% summarize(n = n()) %>% arrange(desc(n)) %>% mutate(item = paste(manufacturer," (", n, ")", sep="")) %>% select(c("manufacturer", "item")) 
@@ -41,9 +42,10 @@ shinyServer(function(input, output) {
     
     output$bar <- renderPlotly({
 
-        WF_Map[WF_Map$manufacturer == input$manu,] %>% group_by(project_name) %>% summarize(n = n()) %>% arrange(desc(n)) %>% slice_head(n=10) %>% 
-            plot_ly(x = ~n, y = ~reorder(project_name, n), type = 'bar', orientation = 'h')# %>% 
-            #layout(plot_bgcolor='transparent',paper_bgcolor='transparent',annotations = list(x = ~n, y=~reorder(project_name, n), text=~n, xanchor="left", yanchor="center", showarrow=FALSE), font = list(family = "verdana"), yaxis=list(title = ""), xaxis=list(showline = FALSE, showticklabels = FALSE, showgrid = FALSE,title = "", domain=list(.25,1)))
+        plotData <- WF_Map[WF_Map$manufacturer == input$manu,] %>% group_by(project_name) %>% summarize(n = n()) %>% arrange(desc(n))
+        plotData$project_name <- gsub( "'", "", paste(plotData$project_name))        
+        plotData[1:10,] %>% plot_ly(x = ~n, y = ~reorder(project_name, n), type = 'bar', orientation = 'h') %>% 
+            layout(plot_bgcolor='transparent',paper_bgcolor='transparent',annotations = list(x = ~n, y=~reorder(project_name, n), text=~n, xanchor="left", yanchor="center", showarrow=FALSE), font = list(family = "verdana"), yaxis=list(title = ""), xaxis=list(showline = FALSE, showticklabels = FALSE, showgrid = FALSE,title = "", domain=list(.25,1)))
     })
     
     output$model <- renderPlotly({

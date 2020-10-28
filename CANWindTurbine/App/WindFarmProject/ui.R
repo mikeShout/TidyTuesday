@@ -78,7 +78,8 @@ shinyUI(fluidPage(
     ),
     fluidRow(
         column(width = 12,align="left",
-            
+            br(),  
+            br(),  
             br(),   
             div("About: This is a ShinyApp to showcase data visualizations for Tidy Tuesday.", style = "font-size: 14px;font-weight: normal;font-family:verdana,arial;color:#595254"),
             tags$a(href="http://github.com/rfordatascience/tidytuesday", "TidyTuesday Github"),
