@@ -1,0 +1,110 @@
+---
+title: "Historical Phone Usage"
+author: "Mike Wehinger"
+date: "10/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+#library(countrycode)
+#library(janitor)
+
+#mobile <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-11-10/mobile.csv')
+#landline <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-11-10/landline.csv')
+
+#mobile <- mobile %>% replace_na(list(gdp_per_cap = 0, landline_subs =0, total_pop=0))
+
+#landline <- landline %>% replace_na(list(gdp_per_cap = 0, landline_subs =0, total_pop=0))
+
+#landline$uID <- paste(landline$code, landline$year, sep="_")
+#mobile$uID <- paste(mobile$code, mobile$year, sep="_")
+
+###mobile$phoneType <- "mobile"
+###landline$phoneType <- "landline"
+###landline <- landline %>% rename(subs = landline_subs)
+###mobile <- mobile %>% rename(subs = mobile_subs)
+###allPhones <- bind_rows(mobile,landline)
+
+#allPhones <- landline %>% left_join(mobile, by="uID") %>% drop_na() %>% select(entity = entity.x, year = year.x, landline = landline_subs, continent = continent.x, mobile = mobile_subs)
+
+#write.csv(allPhones, "allPhones.csv", row.names = FALSE)
+
+allPhones <- readr::read_csv("allPhones.csv")
+```
+
+## Explore Data
+
+Look at % mobile phone usage by continent (line graph)...
+
+```{r PercentMobileContinent, warning=FALSE, message=FALSE}
+
+ContinentPhones <- allPhones %>% group_by(continent, year) %>% summarise(mob = sum(mobile), land = sum(landline)) %>% mutate(pMod = mob/(land + mob))
+
+ggplot(data=ContinentPhones, aes(x=year, y=pMod, group=continent, color=continent)) + geom_line(size=1.5)
+
+ContinentPhones[ContinentPhones$pMod >=.5,] %>% ggplot(aes(x=year, y=pMod, group=continent, color=continent)) + geom_line(size=1.5)
+
+```
+
+```{r PercentMobileCountry, warning=FALSE, message=FALSE}
+
+CountryPhones <- allPhones %>% group_by(entity, year) %>% summarise(mob = sum(mobile), land = sum(landline)) %>% mutate(pMod = mob/(land + mob))
+
+#CountryPhones %>% ggplot(aes(x=year, y=pMod, group=entity, color=entity)) + geom_line(size=1) + theme(legend.position = "none")
+
+CountryPhones[CountryPhones$pMod >=.5,] %>% ggplot(aes(x=year, y=pMod, group=entity, color=entity)) + geom_line(size=1.5)+ theme(legend.position = "none")
+
+```
+
+```{r PercentMobileCountryContinent, warning=FALSE, message=FALSE}
+
+CountryPhones <- allPhones %>% group_by(entity, year, continent) %>% summarise(mob = sum(mobile), land = sum(landline)) %>% mutate(pMod = mob/(land + mob))
+
+#CountryPhones %>% ggplot(aes(x=year, y=pMod, group=entity, color=entity)) + geom_line(size=1) + theme(legend.position = "none")
+
+CountryPhones[CountryPhones$pMod >=.5,] %>% ggplot(aes(x=year, y=pMod, group=entity, color=entity)) + geom_line(size=1.5)+ theme(legend.position = "none") + facet_wrap(~continent)
+
+CountryPhones2 <- CountryPhones %>% group_by(entity, continent) %>% slice_min(year, n=1)
+
+CountryPhones2 %>% pivot_longer(cols = c("mob", "land"), names_to = "pType", values_to = "subs") %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") +
+    ggtitle("All Continents") +
+    facet_wrap(~continent) +
+    xlab("")
+
+```
+
+% by continent stacked bar...
+
+```{r pressure, echo=FALSE}
+
+ContinentPhones2 <- ContinentPhones %>% pivot_longer(cols = c("mob", "land"), names_to = "pType", values_to = "subs")
+
+ContinentPhones2 %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("All Continents")
+
+ContinentPhones2[ContinentPhones2$continent == "Africa",] %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("Africa")
+
+ContinentPhones2[ContinentPhones2$continent == "Americas",] %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("Americas")
+
+ContinentPhones2[ContinentPhones2$continent == "Asia",] %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("Asia")
+
+ContinentPhones2[ContinentPhones2$continent == "Europe",] %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("Europe")
+
+ContinentPhones2[ContinentPhones2$continent == "Oceania",] %>% ggplot(aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="stack", stat="identity") + ggtitle("Oceania")
+
+ggplot(ContinentPhones2, aes(fill=pType, y=subs, x=year)) + 
+    geom_bar(position="dodge", stat="identity") +
+    ggtitle("All Continents") +
+    facet_wrap(~continent) +
+    xlab("")
+
+```

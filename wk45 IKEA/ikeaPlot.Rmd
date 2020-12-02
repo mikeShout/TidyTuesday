@@ -110,3 +110,15 @@ sizePlot2
             
 ```
 
+
+```{r Application}
+JD <- "Senior Manager, Ancillary & Revenue Analytics Operations"
+CV <- "Mike Wehinger Resume"
+
+if( CV>= JD) {
+    apply(JD, CV)
+    status <- "Applied"
+} else {
+    status <- "Keep moving"
+}
+```
