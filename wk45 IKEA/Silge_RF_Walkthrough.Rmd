@@ -2,7 +2,11 @@
 title: "IKEA Random Forest Tuning"
 author: "Mike Wehinger"
 date: "13/12/2020"
-output: html_document
+output:
+  md_document:
+    variant: markdown_github
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
