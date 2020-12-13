@@ -1,0 +1,189 @@
+---
+title: "IKEA Random Forest Tuning"
+author: "Mike Wehinger"
+date: "13/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
+library(tidyverse)
+library(tidymodels)
+theme_set(theme_minimal())
+
+ikea <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-11-03/ikea.csv')
+
+```
+Walking through the [Julia Silge video](https://juliasilge.com/blog/ikea-prices/) about tuning random forests using the Tidy Tuesday IKEA dataset.  
+
+## Exploratory Analysis
+
+Visualizing the data with price as the Y and width, height, and depth as Xs. Take logs of price due to distribution. 
+
+```{r}
+ikea %>% select(X1, price, depth:width) %>% 
+  pivot_longer(depth:width, names_to = "dim") %>% 
+  ggplot(aes(value, price, color=dim)) + 
+  geom_point(alpha=.4, show.legend = FALSE) +
+  scale_y_log10() + 
+  facet_wrap(~dim, scales = "free_x") +
+  labs(x=NULL)
+  
+```
+
+
+```{r}
+
+ikea_df <- ikea %>% select(price, name, category, depth, height, width) %>%
+  mutate(price = log10(price)) %>% 
+  mutate_if(is.character, factor)
+
+```
+
+## Build Model
+
+Use tidymodels to split data into training/testing based on a price-stratified random sample  
+
+Then use bootstraps to create 25 subsets on the training data
+
+```{r}
+set.seed(123)
+ikea_split <- initial_split(ikea_df, strata = price)
+ikea_train <- training(ikea_split)
+ikea_test <- testing(ikea_split)
+
+set.seed(234)
+ikea_folds <- bootstraps(ikea_train, strata = price)
+ikea_folds
+
+```
+
+The usemodels package is a cool set of model creating functions. It will generate the code needed to stand up common models.  
+
+In this case, you can set up a ranger random forest model using *use_ranger()* function - see the output...
+
+```{r}
+library(usemodels)
+
+use_ranger(price ~ ., data= ikea_train)
+
+
+```
+
+Using the above function, we cut and paste the code and then modify to suit your purposes. 
+
+```{r}
+
+library(textrecipes)
+
+ranger_recipe <- 
+  recipe(formula = price ~ ., data = ikea_train) %>% 
+  step_other(name, category, threshold = .01) %>%
+  step_clean_levels(name, category) %>%
+  step_knnimpute(depth, height, width)
+
+ranger_spec <- 
+  rand_forest(mtry = tune(), min_n = tune(), trees = 1000) %>% 
+  set_mode("regression") %>% 
+  set_engine("ranger") 
+
+ranger_workflow <- 
+  workflow() %>% 
+  add_recipe(ranger_recipe) %>% 
+  add_model(ranger_spec) 
+
+set.seed(91010)
+
+ranger_tune <-
+  tune_grid(ranger_workflow, 
+            resamples = ikea_folds, 
+            grid = 11)
+
+
+```
+
+
+## Explore Results
+
+Look at metrics from the possible models...
+
+```{r}
+show_best(ranger_tune, metric="rmse")
+show_best(ranger_tune, metric="rsq")
+
+autoplot(ranger_tune)
+
+
+```
+
+Create finalized workflow using the best parameters 
+
+```{r}
+
+final_rf <- ranger_workflow %>%
+  finalize_workflow(select_best(ranger_tune))
+
+final_rf
+
+```
+
+Create the final fit with the training and testing data... 
+
+```{r}
+
+ikea_fit <- last_fit(final_rf, ikea_split)
+ikea_fit
+
+
+```
+
+Look at the metrics computed on the text set to compare against the re-sample results (above) 
+
+```{r}
+collect_metrics(ikea_fit)
+```
+
+Collect the predictions on the test set and plot the true vs predicted price from the test set. 
+
+
+```{r}
+collect_predictions(ikea_fit) %>%
+  ggplot(aes(price, .pred)) +
+  geom_abline(lty = 2, color="gray50") +
+  geom_point(alpha = .5, color = "midnightblue") + 
+  coord_fixed()
+
+```
+The trained workflow is in the ikea_fits object *ikea_fit$.workflow[[1]]* and if you have data, for example, row 15 of the test set, use it to predict a price
+
+```{r}
+predict(ikea_fit$.workflow[[1]], ikea_test[15,])
+ikea_test[15,]
+
+predict(ikea_fit$.workflow[[1]], ikea_test[150,])
+ikea_test[150,]
+
+predict(ikea_fit$.workflow[[1]], ikea_test[100,])
+ikea_test[100,]
+```
+## Exploration of Feature Importance
+
+Width is the most important thing and name is the least important. 
+
+```{r}
+library(vip)
+
+imp_spec <- ranger_spec %>% 
+  finalize_model(select_best(ranger_tune)) %>%
+  set_engine("ranger", importance = "permutation")
+
+workflow() %>%
+  add_recipe(ranger_recipe) %>%
+  add_model(imp_spec) %>%
+  fit(ikea_train) %>%
+  pull_workflow_fit() %>%
+  vip(aesthetics = list(alpha=.8, fill = "midnightblue"))
+
+
+```
+

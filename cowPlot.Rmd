@@ -1,0 +1,109 @@
+---
+title: "cowPlotTemplate"
+author: "Mike Wehinger"
+date: "27/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(cowplot)
+library(magick)
+
+```
+
+## CowPlot
+
+Here:
+
+```{r cowP}
+
+# default ggplot2 theme
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) + 
+  geom_point()
+
+# classic cowplot theme
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) + 
+  geom_point() +
+  theme_cowplot(12)
+
+# minimal grid theme
+ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) + 
+  geom_point() +
+  theme_minimal_grid(12)
+
+# minimal horizontal grid theme
+ggplot(iris, aes(Sepal.Length, fill = Species)) + 
+  geom_density(alpha = 0.5) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  theme_minimal_hgrid(12)
+```
+
+## Generic Plot Annotations
+
+blah
+
+```{r cowP_Anno}
+p <- ggplot(mtcars, aes(disp, mpg)) + 
+  geom_point(size = 1.5, color = "blue") +
+  theme_cowplot(12)
+
+logo_file <- system.file("extdata", "logo.png", package = "cowplot")
+
+ggdraw(p) + 
+  draw_image(logo_file, x = 1, y = 1, hjust = 1, vjust = 1, width = 0.13, height = 0.2)
+
+ggdraw() + 
+  draw_image(logo_file, scale = 0.5) +
+  draw_plot(p)
+
+
+title_gg <- ggplot() + 
+  labs(title = "This Title", subtitle = "The subtitle to this affair")
+plot_grid(title_gg, p, ncol = 1, rel_heights = c(0.15, 1))
+
+```
+
+## Patchwork
+
+blah
+
+```{r patchWork}
+
+p1 <- ggplot(mtcars) + 
+  geom_point(aes(mpg, disp)) + 
+  ggtitle('Plot 1')
+
+p2 <- ggplot(mtcars) + 
+  geom_boxplot(aes(gear, disp, group = gear)) + 
+  ggtitle('Plot 2')
+
+p3 <- ggplot(mtcars) + 
+  geom_point(aes(hp, wt, colour = mpg)) + 
+  ggtitle('Plot 3') + labs(x="hp",y="weight",title="HP to Weight",subtitle="Horse Power to Weight Ratio",col=NULL)
+
+p4 <- ggplot(mtcars) + 
+  geom_bar(aes(gear)) + 
+  facet_wrap(~cyl) + 
+  ggtitle('Plot 4')
+
+
+library(patchwork)
+
+textcol <- "midnightblue"
+
+((p1 | p2) / p3 )+
+  plot_annotation(
+  title="Information About Cars",
+  subtitle="Using the mtcars of course. \nThis can be taylored to your needs",
+  caption = "SOURCE: blah blah blah"
+)+
+  plot_layout(heights=c(0.7,0.3)) &
+  theme(plot.background = element_rect(fill = "ivory"),
+        panel.background = element_rect(fill="ivory2"),
+        axis.title = element_text(family = "sans" ,size=14,colour=textcol),
+        axis.text = element_text(family = "sans" ,size=14,colour=textcol),
+        plot.title = element_text(family = "sans", face = "bold", size = 20, colour = textcol),
+        plot.subtitle = element_text(family = "sans" ,size=14, colour = textcol))
+```
