@@ -22,3 +22,6 @@ workflows
 yardstick
 vip
 parttree
+rlang
+vctrs
+rpart
