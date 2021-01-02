@@ -20,3 +20,8 @@ rsample
 tune
 workflows
 yardstick
+vip
+rlang
+vctrs
+rpart
+parttree

@@ -3,37 +3,227 @@ title: "Wind Turbine Capacity with Decision Trees"
 author: "Mike Wehinger"
 date: "15/12/2020"
 output:
-  html_document:
-    df_print: paged
   md_document:
     variant: markdown_github
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = TRUE)
 library(tidyverse)
 library(tidymodels)
-theme_set(theme_minimal())
+library(vip)
+library(parttree)
+theme_set(theme_light())
 
-turbines <- read.csv("App/WindFarmProject/CAN_WindFarm.csv")
+turbines <- read_csv("App/WindFarmProject/CAN_WindFarm.csv")
 ```
 
-## R Markdown
+## Predict turbine capacity
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Model Canadian wind turbine capacity with decision trees and tidymodels. 
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+### Prep Data
+```{r prep}
 
-```{r cars}
-summary(cars)
+turbines_df <- turbines %>% 
+  transmute(turbine_capacity = turbine_rated_capacity_k_w,
+            rotor_diameter_m,
+            hub_height_m, 
+            # parse_number to get the first number from a string, so '2014/2015' becomes 2014 
+            commissioning_date = parse_number(commissioning_date), 
+            #fct_lump_n lumps low frequency data into an 'other category'
+            province_territory = fct_lump_n(province_territory,8),
+            model = fct_lump_n(model,10)) %>%
+  filter(!is.na(turbine_capacity)) %>%
+  mutate_if(is.character, factor)
+
 ```
 
-## Including Plots
+### Explore Data
 
-You can also embed plots, for example:
+Look at relationships between output and some variables. Using the geom_hex to help with overplotting...
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r graph}
+
+turbines_df %>%
+    select(turbine_capacity:commissioning_date) %>%
+    pivot_longer(rotor_diameter_m:commissioning_date) %>%
+    ggplot(aes(turbine_capacity, value)) +
+    geom_hex(bins = 15, alpha = .8) + 
+    geom_smooth(method="lm") +
+    facet_wrap(~name, scales = "free_y") +
+    labs(y=NULL) + scale_fill_gradient(high = "orange")
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Building the Model
+
+Setting up training, testing, and resampling data...
+
+```{r modelPrep}
+
+set.seed(123)
+wind_split <- initial_split(turbines_df, strata=turbine_capacity)
+wind_train <- training(wind_split)
+wind_test <- testing(wind_split)
+
+#Make re-samples to tune the model...
+
+set.seed(234)
+wind_folds <- vfold_cv(wind_train, strata = turbine_capacity)
+wind_folds
+
+```
+
+Decision tree specification and parameters 
+
+```{r modelDT}
+
+# Decision tree w/ three main tuning parameters 
+# 1. How complicated
+# 2. Tree depth - how many nodes
+# 3. How many data points splitting nodes 
+
+tree_spec <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = tune(),
+  min_n = tune()
+) %>%
+  set_engine("rpart") %>%
+  set_mode("regression")
+
+tree_spec
+
+tree_grid <- grid_regular(cost_complexity(), tree_depth(), min_n(), levels=4)
+
+tree_grid
+
+```
+
+Running the model and storing the results...
+
+```{r runModel}
+
+set.seed(345)
+
+# Tree Results...
+tree_rs <- tune_grid(
+  tree_spec,
+  turbine_capacity ~ .,
+  resamples = wind_folds,
+  grid = tree_grid,
+  metrics = metric_set(rmse,rsq,mae,mape)
+)
+
+tree_rs
+
+```
+
+Exploring model results, 
+
+```{r modelResultsExplore}
+
+# Tabular list of measure results...
+collect_metrics(tree_rs)
+
+# Graphical view...
+autoplot(tree_rs) + theme_light()
+
+# Show the best models (default measure = rmse)
+show_best(tree_rs)
+
+# Select the best model (only one model returned) 
+select_best(tree_rs, "rmse")
+
+```
+Finalize the model using the best model based on rsme
+
+```{r finalModel}
+
+# A tree specification with the values from the best model - as opposed to the above where the values were determined by tune() 
+
+final_tree <- finalize_model(tree_spec, select_best(tree_rs, "rmse"))
+
+# Fit the data to the model,
+
+# fit to the training data. A fitted decision tree...
+
+final_fit <- fit(final_tree, turbine_capacity ~., wind_train)
+
+# Or use last_fit, which uses the split data instead of the training data. It fits to the training data and is evaluated on the test data...  
+final_rs <- last_fit(final_tree, turbine_capacity ~., wind_split)
+
+
+```
+
+Predicting on new data
+
+```{r predicting}
+
+# use this as 'new data' to predict with,
+wind_train[44,]
+
+predict(final_fit, wind_train[44,])
+
+# Or use final_rs...
+
+predict(final_rs$.workflow[[1]], wind_train[44,])
+
+```
+
+### Understanding the model
+
+
+```{r vip}
+
+# Plot the variables by importance... 
+
+final_fit %>% 
+  vip(geom="col", aesthetics = list(fill="midnightblue", alpha=.8)) +
+  scale_y_continuous(expand = c(0,0))
+
+# You can also Visualize the tree partitions on the data when looking at one or two variables. Here is an example with two predictors...
+
+# here is the data for the two predictors...
+
+wind_train %>% 
+  ggplot(aes(rotor_diameter_m, commissioning_date)) +
+  geom_jitter(alpha=.7, width = 1, height = .5, aes(color = turbine_capacity)) +
+  scale_color_viridis_c(aesthetics = c("color", "fill"))
+
+# Create another fit for this purpose that only has the two predictors
+
+ex_fit <- fit(final_tree, turbine_capacity ~ rotor_diameter_m + commissioning_date, wind_train)
+
+# Now add the geom_parttree layer,
+
+wind_train %>% 
+  ggplot(aes(rotor_diameter_m, commissioning_date)) +
+  geom_parttree(data = ex_fit, aes(fill = turbine_capacity), alpha=.3) +
+  geom_jitter(alpha=.7, width = 1, height = .5, aes(color = turbine_capacity)) +
+  scale_color_viridis_c(aesthetics = c("color", "fill"))
+
+```
+
+This chart shows how the partitions that the decision tree is using to make predictions. 
+
+### Testing Data Outcomes
+
+```{r testing}
+
+# Results from the testing data...
+
+collect_metrics(final_rs)
+
+# The predicted and true capacity... 
+collect_predictions(final_rs)
+
+# Chart actual and predicted values...
+
+collect_predictions(final_rs) %>%
+  ggplot(aes(turbine_capacity, .pred)) +
+  geom_abline(slope=1, lty=2, color = "grey50", alpha=.5)+
+  geom_point(alpha=.6, color = "midnightblue")
+```
