@@ -1,0 +1,268 @@
+---
+title: "Transit Cost Project"
+author: "Mike Wehinger"
+date: "05/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, cache = FALSE)
+
+library(tidyverse)
+library(leaflet)
+
+transit_cost <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-01-05/transit_cost.csv')
+
+transit_cost <- transit_cost %>% drop_na() %>% filter(country=="AU")
+
+
+```
+
+# Exploratory Analysis
+
+The data is from a database that spans more than 50 countries and totals more than 11,000 km of urban rail built since the late 1990s.
+
+## Project Timelines
+
+Will focus on Australia and make a nicely designed project time-line chart that will be useful for other purposes.
+
+```{r timeLineChart, echo=FALSE}
+
+library(ggalt)
+library(ggforestplot)
+
+#Convert the start and end years into date variable types...
+
+transit_cost$start_year <- as.Date(paste("01/01/",transit_cost$start_year, sep=""), "%d/%m/%Y")
+
+transit_cost$end_year <- as.Date(paste("01/01/",transit_cost$end_year, sep=""), "%d/%m/%Y")
+
+# Chart...
+
+proj <- transit_cost %>% mutate(line = fct_reorder(line, desc(start_year))) %>%
+    ggplot(aes(x=start_year, xend=end_year, y=line, group=city)) + 
+    geom_dumbbell(size=1.3, color="#007FA9",
+                  colour_x = "#007FA9",
+                  colour_xend = "#007FA9",
+                  size_x = 5,
+                  size_xend = 5,
+                  dot_guide=FALSE, dot_guide_size=0.25) + 
+  labs(x=NULL, y=NULL,
+       title="Project Timelines",
+       subtitle="Years start to finish",
+       caption="Source: https://transitcosts.com/") + 
+  theme_classic() + 
+  geom_stripes(odd = "#11111111", even = "#00000000") +
+  theme(plot.title = element_text(hjust=0.5, face="bold"),
+        panel.grid.major.x = element_line(color = "gray", size = .5),
+        axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.line.x = element_blank()
+        )
+
+proj
+
+```
+
+## Project Costs
+
+A simple bar chart for cost per KM 
+
+```{r costChart, echo=FALSE}
+
+# A simple bar graph in orange 
+
+transit_cost %>% mutate(line = fct_reorder(line, cost_km_millions)) %>%
+  ggplot(aes(x=line)) +
+    geom_bar( aes(y=cost_km_millions), stat="identity", size=.1, fill="#e57d09", color="#b85c01", alpha=.99) +
+  coord_flip() +
+  labs(x=NULL, y= "Costs",
+       title="Project Cost Per KM",
+       subtitle="AUD $M") + 
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5, face="bold"),
+        panel.grid.major.x = element_line(color = "gray", size = .5)
+        )
+
+```
+
+## Maps
+
+Put the projects into a leaflet map...
+
+```{r prepData}
+
+#Add Lat & Long for Australia,
+transit_cost[transit_cost$line == "Metro City & SW",'lat'] <- -34.18447 
+transit_cost[transit_cost$line == "Metro City & SW",'long'] <- 150.78051 
+
+transit_cost[transit_cost$line == "Metro NW",'lat'] <- -33.05082 
+transit_cost[transit_cost$line == "Metro NW",'long'] <- 151.16623 
+
+transit_cost[transit_cost$line == "Metro Tunnel",'lat'] <- -37.817187
+transit_cost[transit_cost$line == "Metro Tunnel",'long'] <- 144.953335
+
+transit_cost[transit_cost$line == "Forrestfield-Airport Link",'lat'] <- -31.976550
+transit_cost[transit_cost$line == "Forrestfield-Airport Link",'long'] <- 115.990174
+
+```
+
+
+Plot projects on a map
+
+```{r map, echo=FALSE, eval=TRUE}
+
+transit_cost$content <- paste(sep = "<br/>",
+  paste("<b>", transit_cost$line, "</b>", sep=""),
+  transit_cost$city,
+  paste("Length", transit_cost$length)
+)
+
+
+transit_cost %>% 
+  filter(country=="AU") %>% 
+  leaflet() %>% 
+  addProviderTiles("Stamen.TonerLite") %>%
+  addPopups(lat = ~lat, lng = ~long, ~content)
+
+
+map <- transit_cost %>% 
+  filter(country=="AU") %>% 
+  leaflet() %>% 
+  addProviderTiles("Stamen.TonerLite") %>% 
+  addMarkers(lat = ~lat, lng = ~long, label = ~line,
+             labelOptions = labelOptions(noHide = T,
+                                         direction="right",
+                                         style = list(
+                                           "color" = "midnightblue",
+                                           "font-family" = "serif",
+                                           "font-style" = "italic",
+                                           "box-shadow" = "3px 3px rgba(0,0,0,0.25)",
+                                           "font-size" = "12px",
+                                           "border-color" = "rgba(0,0,0,0.5)")))
+
+map
+```
+
+```{r mapExplore, echo=FALSE, include=FALSE, eval=FALSE}
+# Test All maps...
+
+map <- transit_cost %>% leaflet() %>% addMarkers(lng = ~long, lat = ~lat)
+
+map %>% addProviderTiles("Stamen.TonerLite")
+map %>% addProviderTiles("Esri.WorldGrayCanvas") 
+map %>% addProviderTiles("CartoDB.VoyagerLabelsUnder")
+map %>% addProviderTiles("Stamen.Watercolor")
+```
+
+## USA Version
+
+Try again, this time for the USA...
+
+```{r USAChart, echo=FALSE}
+
+transit_cost <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-01-05/transit_cost.csv')
+
+transit_cost <- transit_cost %>% drop_na() %>% filter(country=="US") %>% mutate(line = paste(line, "\n", "(", city, ")", sep=""))
+
+#Convert the start and end years into date variable types...
+
+transit_cost$start_year <- as.Date(paste("01/01/",transit_cost$start_year, sep=""), "%d/%m/%Y")
+
+transit_cost$end_year <- as.Date(paste("01/01/",transit_cost$end_year, sep=""), "%d/%m/%Y")
+
+# Chart...
+
+proj <- transit_cost %>% mutate(line = fct_reorder(line, desc(start_year))) %>%
+    ggplot(aes(x=start_year, xend=end_year, y=line, group=city)) + 
+    geom_dumbbell(size=1.3, color="#007FA9",
+                  colour_x = "#007FA9",
+                  colour_xend = "#007FA9",
+                  size_x = 5,
+                  size_xend = 5,
+                  dot_guide=FALSE, dot_guide_size=0.25) + 
+  labs(x=NULL, y=NULL,
+       title="Project Timelines",
+       subtitle="Years start to finish",
+       caption="Source: https://transitcosts.com/") + 
+  theme_classic() + 
+  geom_stripes(odd = "#11111111", even = "#00000000") +
+  theme(plot.title = element_text(hjust=0.5, face="bold"),
+        panel.grid.major.x = element_line(color = "gray", size = .5),
+        axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.line.x = element_blank()
+        )
+
+proj
+
+# A simple bar graph in orange 
+
+costs <- transit_cost %>% mutate(line = fct_reorder(line, cost_km_millions)) %>%
+  ggplot(aes(x=line)) +
+    geom_bar( aes(y=cost_km_millions), stat="identity", size=.1, fill="#e57d09", color="#b85c01", alpha=.99) +
+  scale_y_continuous(labels=scales::dollar_format()) + 
+  coord_flip() +
+  labs(x=NULL, y= "Costs / KM",
+       title="Project Cost Per KM",
+       subtitle="USD $M") + 
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5, face="bold"),
+        panel.grid.major.x = element_line(color = "gray", size = .5)
+        )
+
+costs
+
+costs2 <- transit_cost %>% group_by(city) %>% summarize(avgCostPkm = mean(cost_km_millions)) %>% mutate(line = fct_reorder(city, avgCostPkm)) %>%
+  ggplot(aes(x=line)) +
+    geom_bar( aes(y=avgCostPkm), stat="identity", size=.1, fill="#e57d09", color="#b85c01", alpha=.99) +
+  scale_y_continuous(labels=scales::dollar_format()) + 
+  coord_flip() +
+  labs(x=NULL, y= "Costs / KM",
+       title="Average Project Cost Per KM By City",
+       subtitle="USD $M") + 
+  theme_classic() +
+  theme(plot.title = element_text(hjust=0.5, face="bold"),
+        panel.grid.major.x = element_line(color = "gray", size = .5)
+        )
+
+costs2
+
+# Get Lat & Long for cities...,
+transit_cost[transit_cost$city == "Boston",'lat'] <- 42.35866 
+transit_cost[transit_cost$city == "Boston",'long'] <- -71.05674 
+
+transit_cost[transit_cost$city == "Los Angeles",'lat'] <- 34.05349 
+transit_cost[transit_cost$city == "Los Angeles",'long'] <- -118.24532 
+
+transit_cost[transit_cost$city == "New York",'lat'] <- 40.71455 
+transit_cost[transit_cost$city == "New York",'long'] <- -74.00712 
+
+transit_cost[transit_cost$city == "San Francisco",'lat'] <- 37.77986 
+transit_cost[transit_cost$city == "San Francisco",'long'] <- -122.42905 
+
+transit_cost[transit_cost$city == "San Jose",'lat'] <- 37.333332 
+transit_cost[transit_cost$city == "San Jose",'long'] <- -121.9 
+
+transit_cost[transit_cost$city == "Seattle",'lat'] <- 47.60357 
+transit_cost[transit_cost$city == "Seattle",'long'] <- -122.32945 
+
+map <- transit_cost %>%
+  leaflet() %>% 
+  addProviderTiles("Stamen.TonerLite") %>% 
+  addMarkers(lat = ~lat, lng = ~long, label = ~line,
+             labelOptions = labelOptions(noHide = T,
+                                         direction="right",
+                                         style = list(
+                                           "color" = "midnightblue",
+                                           "font-family" = "serif",
+                                           "font-style" = "italic",
+                                           "box-shadow" = "3px 3px rgba(0,0,0,0.25)",
+                                           "font-size" = "12px",
+                                           "border-color" = "rgba(0,0,0,0.5)")))
+
+map
+
+```
