@@ -1,0 +1,182 @@
+---
+title: "Plastic"
+author: "Mike Wehinger"
+date: "27/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(kableExtra)
+library(scales)
+
+#plastics <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-01-26/plastics.csv')
+
+plastics <- readr::read_csv('plastics.csv')
+
+# Resources
+# https://ggraph.data-imaginist.com/reference/geom_node_voronoi.html
+# https://ggraph.data-imaginist.com/articles/Edges.html
+# https://www.data-to-viz.com/graph/dendrogram.html
+# http://exts.ggplot2.tidyverse.org/ggraph.html
+# https://www.data-imaginist.com/2017/ggraph-introduction-edges/
+# https://www.r-graph-gallery.com/334-basic-dendrogram-with-ggraph.html
+
+
+```
+
+## Explore Data
+
+Will look at change in counts or proportion of plastic types over time. 
+
+
+#### Country
+
+
+
+Look at data collection by country and remove inconsistencies and counts < 10
+
+```{r country}
+
+# There is a lot of variation in data collection from year to year... 
+
+country <- plastics %>% 
+        group_by(country, year) %>% 
+        summarize(count = n()) %>% 
+        filter(count>10) %>% 
+        pivot_wider(names_from = year, values_from = count) %>% 
+        drop_na() %>% 
+        mutate(pChange = (sum(`2020`) - sum(`2019`)) / sum(`2019`)) %>%
+        arrange(desc(pChange))
+
+country
+
+country %>% ggplot(aes(pChange)) + geom_histogram() + scale_x_continuous(labels = scales::percent)
+
+```
+
+#### Brand
+
+Look at data by brand 
+
+```{r brand}
+
+# There are a lot of brands w/ small counts. There may be a need to clean brand names...
+
+brand <- plastics %>% group_by(parent_company, year) %>% summarize(count = n()) %>% pivot_wider(names_from = year, values_from = count) %>% drop_na() %>% mutate(pChange = (sum(`2020`) - sum(`2019`)) / sum(`2019`)) %>% arrange(parent_company)
+
+brand %>% filter(`2020` > 5)
+
+brand %>% ggplot(aes(pChange)) + geom_histogram() + scale_x_continuous(labels = scales::percent)
+
+brand %>% arrange(desc(`2020`)) %>% filter(`2020` > 10) %>% pivot_longer(c(`2019`,`2020`), names_to = "year", values_to = "count") %>% ggplot(aes(x=parent_company, y=count, fill=year)) + geom_col(position = position_dodge()) + coord_flip()
+
+```
+
+#### Plastic Type
+
+Look at plastic types, quwestions, 
+
+relationship between country and brand
+proportion changes between years
+proportion changes between years and country
+```{r plastic}
+
+pTypes <- plastics %>% drop_na %>% group_by(year) %>% summarize(hdpe = (sum(hdpe) / sum(grand_total)), ldpe = (sum(ldpe) / sum(grand_total)), o = (sum(o) / sum(grand_total)), pet = (sum(pet) / sum(grand_total)), pp = (sum(pp) / sum(grand_total)), ps = (sum(ps) / sum(grand_total)), pvc = (sum(pvc) / sum(grand_total)))
+
+pTypes %>% pivot_longer(hdpe:pvc) %>% ggplot(aes(x=name, y=value, fill=as.factor(year))) + geom_col(position = position_dodge()) + coord_flip()
+
+pTypesCountry <- plastics %>% drop_na %>% group_by(country, year) %>% summarize(hdpe = (sum(hdpe) / sum(grand_total)), ldpe = (sum(ldpe) / sum(grand_total)), o = (sum(o) / sum(grand_total)), pet = (sum(pet) / sum(grand_total)), pp = (sum(pp) / sum(grand_total)), ps = (sum(ps) / sum(grand_total)), pvc = (sum(pvc) / sum(grand_total)))
+
+# Look at proportions of plastic types by country and year...
+
+
+```
+
+#### Events & Volunteers
+
+
+```{r events}
+
+events <- plastics %>% group_by(year, country) %>% summarize(itemsFound = sum(grand_total), volunteers = mean(volunteers), events = mean(num_events)) %>% mutate(itemsPvolunteer = itemsFound/volunteers, volunteersPevent = volunteers/events)
+
+
+```
+
+```{r test}
+library(ggraph)
+library(igraph)
+
+data=data.frame(
+  level1="CEO",
+  level2=c( rep("boss1",4), rep("boss2",4)),
+  level3=paste0("mister_", letters[1:8])
+)
+ 
+# transform it to a edge list!
+edges_level1_2 = data %>% select(level1, level2) %>% unique %>% rename(from=level1, to=level2)
+edges_level2_3 = data %>% select(level2, level3) %>% unique %>% rename(from=level2, to=level3)
+edge_list=rbind(edges_level1_2, edges_level2_3)
+ 
+# Now we can plot that
+mygraph <- graph_from_data_frame( edge_list )
+ggraph(mygraph, layout = 'dendrogram', circular = FALSE) + 
+  geom_edge_diagonal() +
+  geom_node_point(color="#69b3a2", size=3) +
+  geom_node_text(
+    aes(  label=c("CEO", "Manager", "Manager", LETTERS[8:1]) ), 
+    hjust=c(1,0.5, 0.5, rep(0,8)), 
+    nudge_y = c(-.02, 0, 0, rep(.02,8)),
+    nudge_x = c(0, .3, .3, rep(0,8))
+  ) +
+  theme_void() +
+  coord_flip() +
+  scale_y_reverse() 
+
+```
+
+
+```{r test2}
+library(ggraph)
+library(igraph)
+
+data=data.frame(
+  level1="US",
+  level2=c( rep("hdpe",5), rep("ldpe",5),rep("o",5), rep("pet",5),rep("pp",5), rep("ps",5), rep("pvc",5)),
+  level3=paste0("mister_", 1:35)
+)
+ 
+# transform it to a edge list!
+edges_level1_2 = data %>% select(level1, level2) %>% unique %>% rename(from=level1, to=level2)
+edges_level2_3 = data %>% select(level2, level3) %>% unique %>% rename(from=level2, to=level3)
+edge_list=rbind(edges_level1_2, edges_level2_3)
+ 
+# Now we can plot that
+mygraph <- graph_from_data_frame( edge_list )
+ggraph(mygraph, layout = 'dendrogram', circular = FALSE) + 
+  geom_edge_diagonal() +
+  geom_node_point(color="#69b3a2", size=3) +
+  geom_node_text(
+    aes(  
+            label=c("USA", "hdpe", "ldpe", "o", "pet", "pp", "ps", "pvc", paste("co",1:35, sep="_"))
+            ), 
+    hjust=c(1,rep(.5,7), rep(0,35)), 
+    nudge_y = c(-.02,rep(0,7), rep(.02,35)),
+    nudge_x = c(0,rep(1,7), rep(0,35))
+  ) +
+  theme_void() +
+  coord_flip() +
+  scale_y_reverse() 
+
+#possible unicode symbols...
+# \u2297 ⊗
+# \u2022 •
+# \u220E ∎
+# \u2587 ▇
+# \u25C9 ◉
+# \u25CF ●
+# Good resource: https://www.htmlsymbols.xyz/unicode?page=35
+
+
+```

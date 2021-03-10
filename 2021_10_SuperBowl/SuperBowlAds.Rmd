@@ -1,0 +1,295 @@
+---
+title: "SuperBowlAds"
+author: "Mike Wehinger"
+date: "03/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+#youtube <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-03-02/youtube.csv')
+
+youtube <- readr::read_csv('youtube.csv')
+
+```
+
+## Super Bowl Ad Analysis
+
+This data comes from [FiveThirtyEight](https://github.com/fivethirtyeight/superbowl-ads) where they classified 233 ads from 10 brands that aired the most spots in all 21 Super Bowls this century using seven specific criteria. 
+
+This analysis will use that data to see what strategies were used by year and/or brand considering youtube views
+
+### Prepare the Data
+
+The following code transforms the data into a tidy list of strategies...
+
+```{r DataPrep, echo=FALSE}
+
+# In the view_count data replace NAs with a zero
+youtube$view_count <- youtube$view_count %>% replace_na(0)
+
+# For each ad, convert the strategy TRUE/FALSE indicator with a 1 or 0...
+
+youtube <- youtube %>% mutate(funny = if_else(funny==TRUE,1,0)) %>%
+  mutate(show_product_quickly = if_else(show_product_quickly==TRUE,1,0)) %>%
+  mutate(patriotic = if_else(patriotic==TRUE,1,0)) %>%
+  mutate(celebrity = if_else(celebrity==TRUE,1,0)) %>%
+  mutate(danger = if_else(danger==TRUE,1,0)) %>%
+  mutate(animals = if_else(animals==TRUE,1,0)) %>%
+  mutate(use_sex = if_else(use_sex==TRUE,1,0))
+
+# Count the strategies used in each add...
+youtube$Strategy_Count <- youtube$funny + youtube$patriotic + youtube$celebrity + youtube$danger + youtube$animals + youtube$use_sex
+
+# Add a strategy category of none and select only the cols of interest and ignore ads with no strategy
+youtube <- youtube %>% mutate(No_Strategy = ifelse(Strategy_Count==0,1,0)) %>% 
+  filter(Strategy_Count>0) %>%
+  select(year,brand,funny,patriotic,celebrity,danger,animals, use_sex, Strategy_Count, view_count)
+
+# Clean Up column names
+names(youtube) <- gsub("_", " ", names(youtube)) %>% str_to_title()
+
+# Pivot the table long such that each strategy for an ad comprises a row. For example, an ad that used three
+# strategies will have three rows.
+youtube <- youtube %>% pivot_longer(Funny:'Use Sex', names_to="Strategy", values_to = "Count")
+
+# Then allocate the strategy count evenly across the strategies. For example, an ad using three strategies = each strategy will have been used .333 times in that ad.
+youtube$`Strategy Count` <- youtube$Count / youtube$`Strategy Count`
+
+# Allocate the view account evenly across the strategies too, 
+youtube$`View Count` <- youtube$`View Count` * youtube$`Strategy Count`
+
+# Filter out rows of unused strategies..
+youtube <- youtube %>% filter(Count > 0) %>% select(-Count)
+
+# Now the data is prepared and can be grouped according to vizual requirements 
+```
+
+
+
+### Visualizations
+
+Lets try a Mosaic plot where the bar width is determined by youtube Views and the height is a 100% stacked bar showing proportion of strategies used...
+
+```{r MosaicChart, echo=FALSE}
+#sub2 <- youtube %>% drop_na %>% group_by(year, use_sex) %>% summarize(count = n(), Views = sum(view_count)) %>% mutate(year.count=sum(count), prop = count/sum(count)) %>% ungroup()
+
+# A Mosaic plot looking by year...
+print("Mosaic By Year")
+youtube %>% group_by(Year, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(view_count = sum(`View Count`), prop = `View Count` / sum(`View Count`), 'Ad Count'= sum(`Strategy Count`)) %>% ungroup() %>% ggplot(aes(x = `Ad Count`, y = prop, width = `Ad Count`, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Year, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+
+
+print("Mosaic for 2019 & 2020")
+youtube %>% filter(Year > 2018) %>% group_by(Year, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(strat_count = sum(`Strategy Count`), prop = `Strategy Count` / sum(`Strategy Count`), Views = sum(`View Count`)) %>% ungroup() %>% ggplot(aes(x = strat_count, y = prop, width = Views, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Year, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+
+
+
+
+# This time by brand...
+print("Mosaic By Brand")
+youtube %>% group_by(Brand, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(strat_count = sum(`Strategy Count`), prop = `Strategy Count` / sum(`Strategy Count`), Views = sum(`View Count`)) %>% ungroup() %>% ggplot(aes(x = strat_count, y = prop, width = Views, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Brand, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+
+
+print("Mosaic By Year for Budweiser")
+youtube %>% filter(Brand == "Budweiser") %>% group_by(Year, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(strat_count = sum(`Strategy Count`), prop = `Strategy Count` / sum(`Strategy Count`), Views = sum(`View Count`)) %>% ungroup() %>% ggplot(aes(x = strat_count, y = prop, width = Views, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Year, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+
+
+print("Mosaic By Brand for 2020")
+youtube %>% filter(Year==2020) %>% group_by(Brand, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(strat_count = sum(`Strategy Count`), prop = `Strategy Count` / sum(`Strategy Count`), Views = sum(`View Count`)) %>% ungroup() %>% ggplot(aes(x = strat_count, y = prop, width = Views, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Brand, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+
+
+# Both (excluding brand)
+print("Mosaic By Year and Brand (excluding Doritos)")
+youtube %>% filter(Brand != "Doritos") %>% group_by(Year, Brand, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(strat_count = sum(`Strategy Count`), prop = `Strategy Count` / sum(`Strategy Count`), Views = sum(`View Count`)) %>% ungroup() %>% ggplot(aes(x = strat_count, y = prop, width = Views, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(Brand~Year, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn") + theme_void() 
+
+    # theme(panel.spacing.x = unit(0, "npc")) + # if no spacing preferred between bars
+
+
+
+```
+
+Having the youtube view count on the x-axis is distorting the viz too much. Try moving it to the Y axis, which suggests each strategy is responsible for a certain proportion of views. The x-axis can be add count, which is usually 8 to 12
+
+```{r MosaicChartv2, echo=FALSE}
+
+print("Mosaic By Year")
+youtube %>% group_by(Year, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(strat_count = sum(`Strategy Count`), prop = `Strategy Count` / sum(`Strategy Count`), Views = sum(`View Count`)) %>% ungroup() %>% ggplot(aes(x = strat_count, y = prop, width = Views, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Year, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+
+print("Mosaic By Brand")
+youtube %>% group_by(Brand, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(view_count = sum(`View Count`), prop = `View Count` / sum(`View Count`), 'Ad Count'= sum(`Strategy Count`)) %>% ungroup() %>% ggplot(aes(x = `Ad Count`, y = prop, width = `Ad Count`, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~Brand, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn")
+```
+
+
+This might as well be a stacked bar chart - taking away the info provided by the width. Maybe try a heatmap.
+
+```{r Heat, echo=FALSE}
+print("Heatmap By Year")
+youtube %>% group_by(Year, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(view_count = sum(`View Count`), prop = `View Count` / sum(`View Count`), 'Ad Count'= sum(`Strategy Count`)) %>% ungroup()%>% ggplot(aes(Year, Strategy, fill=prop)) + 
+    geom_tile(color="white") + scale_x_discrete()+ coord_equal() + theme(axis.ticks.y = element_blank(),panel.background = element_blank(),legend.position = c(0.87, 1.21),legend.background = element_blank(),legend.direction = "horizontal")+scale_fill_continuous(high = "#132B43", low = "#56B1F7")
+
+print("Heatmap By Brand")
+youtube %>% group_by(Brand, Strategy) %>% summarize(`Strategy Count` =sum(`Strategy Count`), `View Count` = sum(`View Count`)) %>% mutate(view_count = sum(`View Count`), prop = `View Count` / sum(`View Count`), 'Ad Count'= sum(`Strategy Count`)) %>% ungroup()%>% ggplot(aes(Brand, Strategy, fill=prop)) + 
+    geom_tile(color="white") + scale_x_discrete()+ coord_equal() + theme(axis.ticks.y = element_blank(),panel.background = element_blank(),legend.position = c(0.87, 1.21),legend.background = element_blank(),legend.direction = "horizontal")+scale_fill_continuous(high = "#132B43", low = "#56B1F7")
+
+```
+
+Maybe that is not too interesting though, try looking out youtube view counts relating to combinations of strategies...
+
+```{r multiStrat, eval=TRUE}
+
+youtube <- readr::read_csv('youtube.csv')
+
+youtube$view_count <- youtube$view_count %>% replace_na(0)
+
+youtube$strategy <- paste(
+  if_else(youtube$funny==TRUE, "Funny", ""),
+  if_else(youtube$patriotic==TRUE, "Patriotic", ""),
+  if_else(youtube$celebrity==TRUE, "Celebrity", ""),
+  if_else(youtube$danger==TRUE, "Danger", ""),
+  if_else(youtube$animals==TRUE, "Animals", ""),
+  if_else(youtube$use_sex==TRUE, "Sex", ""), sep=" ")
+
+youtube$strategy <- youtube$strategy %>% str_squish()
+
+youtube$strategy <- if_else(youtube$strategy=="", "None", youtube$strategy)
+
+youtube <- youtube %>% select(year,brand,strategy, view_count) %>% arrange(desc(view_count))
+
+youtubeHeat <- youtube %>% group_by(year, strategy) %>% summarize(Views = sum(view_count)) %>% mutate(view_count = sum(Views), percentViews = Views /sum(Views))
+
+youtubeSort <- youtube %>% group_by(strategy) %>% summarize(Views = sum(view_count)) %>% mutate(view_count = sum(Views), percentViews = Views /sum(Views))
+
+youtubeSort$strategy <- factor(youtubeSort$strategy, levels = youtubeSort$strategy[order(youtubeSort$Views)])
+
+youtubeSort %>% ggplot(aes(strategy, Views)) +                                    # Decreasingly ordered barchart
+    geom_bar(stat = "identity") + coord_flip()
+
+youtubeSort %>% filter(Views > 750000) %>% ggplot(aes(strategy, Views)) +                                    # Decreasingly ordered barchart
+    geom_bar(stat = "identity") + coord_flip()
+
+```
+
+How about bringing in the likes and dislikes in addition to the total views...
+
+```{r Engagement, eval=TRUE}
+
+youtube <- readr::read_csv('youtube.csv')
+
+youtube$view_count <- youtube$view_count %>% replace_na(0)
+
+youtube$strategy <- paste(
+  if_else(youtube$funny==TRUE, "Funny", ""),
+  if_else(youtube$patriotic==TRUE, "Patriotic", ""),
+  if_else(youtube$celebrity==TRUE, "Celebrity", ""),
+  if_else(youtube$danger==TRUE, "Danger", ""),
+  if_else(youtube$animals==TRUE, "Animals", ""),
+  if_else(youtube$use_sex==TRUE, "Sex", ""), sep=" ")
+
+youtube$strategy <- youtube$strategy %>% str_squish()
+
+youtube$strategy <- if_else(youtube$strategy=="", "None", youtube$strategy)
+
+youtube <- youtube <- youtube %>% select(year,brand,strategy, view_count, like_count, dislike_count,comment_count) %>% arrange(desc(view_count))
+
+youtube$dislike_count <- youtube$dislike_count * -1 
+
+tmp <- youtube %>% group_by(strategy) %>% summarize(Views = sum(view_count), Likes = sum(like_count), Dislike = sum(dislike_count), Comment = sum(comment_count)) %>% pivot_longer(Views:Comment, names_to = "stat", values_to = "Count")
+
+tmp$Count <- tmp$Count %>% replace_na(0)
+
+#tmp$strategy <- factor(tmp$strategy, levels = tmp$strategy[order(tmp$Views)])
+
+tmp$strategy <- factor(tmp$strategy, levels = tmp[tmp$stat=="Views",]$strategy[order(tmp[tmp$stat=="Views",]$Count)])
+
+tmp %>% ggplot(aes(x=strategy, y=Count, fill=stat)) + 
+  geom_bar(data = subset(tmp, stat=="Likes"), stat="identity") + 
+  geom_bar(data = subset(tmp, stat=="Dislike"), stat="identity") + 
+  coord_flip()
+
+tmp %>% ggplot(aes(x=strategy, y=Count, fill=stat)) + 
+    geom_bar(data = subset(tmp, stat=="Likes"), stat="identity") + 
+    geom_bar(data = subset(tmp, stat=="Dislike"), stat="identity") + geom_point(data = subset(tmp, stat=="Comment")) +
+    coord_flip()
+
+```
+
+
+```{r oldApproach, eval=FALSE}
+
+youtube <- readr::read_csv('youtube.csv')
+
+youtube$view_count <- youtube$view_count %>% replace_na(0)
+
+youtube$strategy <- paste(
+  if_else(youtube$funny==TRUE, "Funny", ""),
+  if_else(youtube$patriotic==TRUE, "Patriotic", ""),
+  if_else(youtube$celebrity==TRUE, "Celebrity", ""),
+  if_else(youtube$danger==TRUE, "Danger", ""),
+  if_else(youtube$animals==TRUE, "Animals", ""),
+  if_else(youtube$use_sex==TRUE, "Sex", ""), sep=" ")
+
+youtube$strategy <- youtube$strategy %>% str_squish()
+
+youtube$strategy <- if_else(youtube$strategy=="", "None", youtube$strategy)
+
+
+sub <- youtube %>% drop_na() %>% group_by(year, brand, strategy) %>% summarize(Views = sum(view_count))
+
+
+
+sub_long <- youtube %>% mutate(funny = if_else(funny==TRUE,1,0)) %>% mutate(show_product_quickly = if_else(show_product_quickly==TRUE,1,0))%>% mutate(patriotic = if_else(patriotic==TRUE,1,0))%>% mutate(celebrity = if_else(celebrity==TRUE,1,0))%>% mutate(danger = if_else(danger==TRUE,1,0))%>% mutate(animals = if_else(animals==TRUE,1,0))%>% mutate(use_sex = if_else(use_sex==TRUE,1,0)) %>% select(year,brand, funny, show_product_quickly, patriotic, celebrity, danger, animals, use_sex)
+
+sub_long %>% group_by(year, Strategy) %>% summarize(Count=sum(Count))
+
+sub_long2 <- sub_long %>% group_by(year, Strategy) %>% summarize(Count=sum(Count)) %>% mutate(year.count = sum(Count), prop = Count/sum(Count))
+
+ggplot(sub_long2,
+       aes(x = year, y = prop, width = year.count, fill = Strategy)) +
+    geom_bar(stat = "identity", position = "fill", colour = "black") +
+    # geom_text(aes(label = scales::percent(prop)), position = position_stack(vjust = 0.5)) + # if labels are desired
+    facet_grid(~year, scales = "free_x", space = "free_x") +
+    scale_fill_brewer(palette = "RdYlGn") +
+    # theme(panel.spacing.x = unit(0, "npc")) + # if no spacing preferred between bars
+    theme_void()
+
+
+sub_long2 %>% ggplot(aes(year, Strategy, fill=Count)) + 
+    geom_tile(color="white") + scale_x_discrete() 
+geom_tile(color="white") + scale_x_discrete() + coord_equal() + theme(axis.ticks.y = element_blank(),panel.background = element_blank(),legend.position = c(0.87, 1.21),legend.background = element_blank(),legend.direction = "horizontal") + scale_fill_gradient(labels = c("Never", "Always"))
+
+```

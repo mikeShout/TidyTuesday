@@ -2,7 +2,11 @@
 title: "Transit Cost Project"
 author: "Mike Wehinger"
 date: "05/01/2021"
-output: html_document
+output:
+  html_document:
+    df_print: paged
+  md_document:
+    variant: markdown_github
 ---
 
 ```{r setup, include=FALSE}
