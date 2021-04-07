@@ -1,0 +1,56 @@
+---
+title: "UN Votes"
+author: "Mike Wehinger"
+date: "23/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+```
+
+## UN Votes
+
+
+
+```{r cars}
+unvotes <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-03-23/unvotes.csv')
+
+roll_calls <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-03-23/roll_calls.csv')
+
+issues <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-03-23/issues.csv')
+
+unvotes <- unvotes %>% inner_join(roll_calls, by="rcid") %>% inner_join(issues, by="rcid")
+
+unvotes %>%
+  filter(country %in% c("United Kingdom", "United States", "Australia")) %>%
+  #filter(str_detect(descr, "AUSTRALIA")) %>%
+  mutate(year = year(date)) %>%
+  group_by(country, year, issue) %>%
+  summarize(percent_yes = mean(vote == "yes")) %>%
+  ggplot(mapping = aes(x = year, y = percent_yes, color = country)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(~issue) +
+  scale_y_continuous() + #how to format y labels as percents?
+  labs(
+    title = "Percentage of 'Yes' votes in the UN General Assembly",
+    subtitle = "1946 to 2019",
+    y = "% Yes",
+    x = "Year",
+    color = "Country"
+  )
+
+
+cuba <- roll_calls %>% filter(str_detect(roll_calls$descr, "CUBA")) %>% left_join(unvotes, by="rcid") %>% left_join(issues, by="rcid")
+
+unvotes %>%
+    filter(country %in% c("United States", "Australia")) %>% mutate(year = year(date)) %>%
+    group_by(year, country, issue, rcid) %>%
+    summarize(vote_yes = sum(vote == "yes")) %>% pivot_wider(names_from=country, values_from=vote_yes) %>% mutate(agreement = ifelse(Australia == `United States`, "Yes", "No")) %>% group_by(year, issue) %>% summarize(percentAgreed = mean(agreement=="Yes")) %>% ggplot(aes(x=year, y=percentAgreed)) + geom_point()+
+    geom_smooth(method = "loess", se = FALSE) + facet_wrap(~issue)
+
+```
+
