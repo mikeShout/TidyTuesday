@@ -1,0 +1,123 @@
+---
+title: "USA Broadband"
+author: "Mike Wehinger"
+date: "11/05/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(leaflet)
+library(raster)
+
+USA <- getData("GADM", country = "usa", level = 2)
+broadband <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-05-11/broadband.csv')
+
+```
+
+## Analyze Claimed VS Actual Broadband usage in USA
+
+Summary
+
+* FCC Survey of ISP Service Claims where internet speed of at least 25Mbps is available
+
+* Microsoft Could Services Statistics (actual usage)
+
+Map is in leaflet...
+
+```{r broadband, echo=FALSE}
+
+broadband$`BROADBAND AVAILABILITY PER FCC` <- as.numeric(broadband$`BROADBAND AVAILABILITY PER FCC`)
+
+broadband$`BROADBAND USAGE` <- as.numeric(broadband$`BROADBAND USAGE`)
+
+broadband <- broadband %>% left_join(as.data.frame(cbind(ST = state.abb, state.name)), by="ST")
+
+broadband$`COUNTY NAME` <- str_remove(broadband$`COUNTY NAME`, " County")
+
+map_data <- merge(USA, broadband, by.x = c("NAME_1", "NAME_2"), by.y = c("state.name", "COUNTY NAME"),
+              all.x = TRUE)
+```
+
+```{r chartOne, echo=FALSE}
+
+mypal <- colorBin("YlGn", map_data$`BROADBAND USAGE`, 5, pretty = FALSE)
+
+leaflet() %>%
+  addProviderTiles("OpenStreetMap.Mapnik") %>%
+  setView(lat = 38.998540, lng = -105.547800, zoom = 7) %>%
+  addPolygons(data = map_data, 
+              stroke = TRUE, color="black", weight=1, smoothFactor = 0.2, fillOpacity = .4,
+              fillColor = ~mypal(map_data$`BROADBAND USAGE`),
+              popup = paste("County: ", map_data$NAME_2, "<br>", "Usage: ", map_data$`BROADBAND USAGE`, "<br>"))
+```
+
+```{r chartLegend, echo=FALSE, eval=FALSE}
+leaflet() %>%
+  addProviderTiles("OpenStreetMap.Mapnik") %>%
+  setView(lat = 38.998540, lng = -105.547800, zoom = 7) %>%
+  addPolygons(data = map_data, 
+              stroke = TRUE, color="black", weight=1, smoothFactor = 0.2, fillOpacity = .4,
+              fillColor = ~mypal(map_data$`BROADBAND USAGE`),
+              popup = paste("County: ", map_data$NAME_2, "<br>", "Usage: ", map_data$`BROADBAND USAGE`, "<br>")) %>%
+  addLegend(position = "bottomright", 
+            pal = mypal, 
+            values = map_data$`BROADBAND USAGE`*100,
+            title = "% Households > 25Mbps",
+            opacity = .99, 
+            labFormat = labelFormat(
+              suffix = "%", 
+              between = " to ",
+              digits = 1,
+              transform = function(x) 100 * x))
+```
+
+```{r chartTwo, echo=FALSE, eval=TRUE}
+mypal <- colorBin("YlGn", map_data$`BROADBAND AVAILABILITY PER FCC`, 5, pretty = FALSE)
+
+
+leaflet() %>%
+  addProviderTiles("OpenStreetMap.Mapnik") %>%
+  setView(lat = 38.998540, lng = -105.547800, zoom = 7) %>%
+  addPolygons(data = map_data, 
+              stroke = TRUE, color="black", weight=1, smoothFactor = 0.2, fillOpacity = .4,
+              fillColor = ~mypal(map_data$`BROADBAND AVAILABILITY PER FCC`),
+              popup = paste("County: ", map_data$NAME_2, "<br>", "Usage: ", map_data$`BROADBAND AVAILABILITY PER FCC`, "<br>"))
+
+```
+
+```{r water, eval=FALSE, echo=FALSE}
+
+# Assign a technology indicator on a scale of 1 to 10, one being lowerst tech (hand pump)
+
+# colnames(Namibia)[2:3] - c("lat", "long")
+
+water <- water %>% mutate(tech_level = case_when(
+  str_detect(water_tech, "hand") ~ 3,
+  str_detect(water_tech, "Hydram") ~ 5,
+  str_detect(water_tech, "Kiosk") ~ 7,
+  str_detect(water_tech, "Mech") ~ 5,
+  str_detect(water_tech, "Rope") ~ 1,
+  str_detect(water_tech, "Tapstand") ~ 5,
+  TRUE ~ 11))
+
+water <- water %>% mutate(tmp = if_else(tech_level==10 & facility_type=="No facilities", 1, 11))
+
+country <- "Madagascar"
+
+highlighted <- water %>% filter(country_name==country)
+
+tmp <- distm(highlighted[,c("lon_deg", "lat_deg")], )
+colnames(tmp) <- rownames(tmp) <- highlighted$row_id
+tmp <- rownames_to_column(as.data.frame(rowMeans(tmp)/1000))
+colnames(tmp) <- c("row_id", "avg_kms")
+tmp$row_id <- as.numeric(tmp$row_id)
+
+highlighted <- left_join(highlighted, tmp, by="row_id")
+
+highlighted %>% leaflet() %>% addTiles() %>% addCircles(lng = ~lon_deg, lat = ~lat_deg, radius = 10000, opacity = 1,fillOpacity = 0)
+
+
+
+```
