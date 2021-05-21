@@ -1,0 +1,305 @@
+---
+title: "AskAManagerSurvey"
+author: "Mike Wehinger"
+date: "18/05/2021"
+output:
+  md_document:
+    variant: markdown_github
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggalt)
+library(ggforestplot)
+
+survey <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-05-18/survey.csv')
+
+
+```
+
+## Exploring Ask A Manager Salary Survey
+
+This is a chart for TidyTuesday week 21, Ask A Manager Salary Survey results...
+
+
+```{r explore, echo=FALSE, eval=FALSE}
+
+
+survey %>% group_by(overall_years_of_professional_experience) %>% summarize(count = n(), avgSal = mean(annual_salary), percentCount = count/nrow(survey)*100) %>% ggplot() + geom_bar(aes(x=overall_years_of_professional_experience, y=count), stat="identity") + coord_flip()
+
+survey %>% group_by(overall_years_of_professional_experience, city) %>% summarize(count = n(), avgSal = mean(annual_salary), percentCount = count/nrow(survey)*100) %>% filter(count>30) %>% ggplot() + geom_bar(aes(x=city, y=count), stat="identity") + coord_flip()
+
+survey %>% group_by(overall_years_of_professional_experience, state) %>% summarize(count = n(), avgSal = mean(annual_salary), percentCount = count/nrow(survey)*100) %>% filter(count>20) %>% ggplot() + geom_bar(aes(x=state, y=count), stat="identity") + coord_flip()
+
+survey %>% group_by(overall_years_of_professional_experience, city) %>% summarize(count = n(), avgSal = mean(annual_salary), percentCount = count/nrow(survey)*100) %>% arrange(desc(percentCount)) %>% slice_head(n=5)
+
+
+```
+
+```{r AUDNZ, echo=FALSE, eval=FALSE}
+library(ggalt) # for dumbbell chart 
+
+# Narrow data down to currencies of AUD / NZ and remove three NAs in education 
+OZ_all <- survey %>% filter(
+  currency == "AUD/NZD", 
+  !is.na(highest_level_of_education_completed))
+
+# Group by education and years experience
+OZ <- OZ_all %>% 
+  group_by(
+    highest_level_of_education_completed, 
+    overall_years_of_professional_experience) %>% 
+  summarize(count = n(), 
+            percentCount = count/nrow(OZ_all)*100, 
+            avgSal = mean(annual_salary), 
+            minSal=min(annual_salary), 
+            maxSal = max(annual_salary))
+
+# There has to be an easier way to do this... 
+OZ<- OZ %>% left_join(OZ %>% group_by(highest_level_of_education_completed)%>% 
+                     summarize(minSal=min(minSal), 
+                               maxSal = max(maxSal)), by="highest_level_of_education_completed",suffix = c("", "_edu"))
+
+OZ %>% 
+    ggplot(aes(y=highest_level_of_education_completed)) + 
+    geom_dumbbell(aes(x=minSal_edu/1000, xend=maxSal_edu/1000), size=1, color="#007FA9",
+                  colour_x = "#007FA9",
+                  colour_xend = "#007FA9",
+                  size_x = 0,
+                  size_xend = 0,
+                  dot_guide=FALSE, dot_guide_size=0.25)+
+    geom_point(aes(x=avgSal/1000, size=count,color=overall_years_of_professional_experience), alpha=.4)+ 
+    labs(x=NULL, y=NULL,
+         title="Salary",
+         subtitle="By years Exp",
+         caption="Source: somewhere") + 
+    theme_classic() + 
+    theme(plot.title = element_text(hjust=0.5, face="bold"),
+          panel.grid.major.x = element_line(color = "gray", size = .5),panel.grid.major.y = element_line(color = "gray", size = .5),
+          axis.ticks.x=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line.x = element_blank(), axis.line.y=element_blank()
+    )
+
+
+```
+
+
+```{r Gender, echo=FALSE, eval=FALSE}
+
+
+# Narrow data down to currencies of AUD / NZ and remove three NAs in education 
+OZ_all <- survey %>% filter(
+  currency == "AUD/NZD", 
+  !is.na(highest_level_of_education_completed))
+
+# Group by education and years experience
+OZ <- OZ_all %>%
+  mutate(gender = if_else(!is.na(gender) & gender=="Man" | !is.na(gender) & gender=="Woman", gender, "Other")) %>%
+  group_by(
+    highest_level_of_education_completed,
+    gender) %>% 
+  summarize(count = n(), 
+            percentCount = count/nrow(OZ_all)*100, 
+            avgSal = mean(annual_salary), 
+            minSal=min(annual_salary), 
+            maxSal = max(annual_salary))
+
+# There has to be an easier way to do this... 
+OZ<- OZ %>% left_join(OZ %>% group_by(highest_level_of_education_completed)%>% 
+                     summarize(minSal=min(minSal), 
+                               maxSal = max(maxSal)), by="highest_level_of_education_completed",suffix = c("", "_edu"))
+
+OZ %>% 
+    ggplot(aes(y=highest_level_of_education_completed)) + 
+    geom_dumbbell(aes(x=minSal_edu/1000, xend=maxSal_edu/1000), size=1, color="#007FA9",
+                  colour_x = "#007FA9",
+                  colour_xend = "#007FA9",
+                  size_x = 0,
+                  size_xend = 0,
+                  dot_guide=FALSE, dot_guide_size=0.25)+
+    geom_point(aes(x=avgSal/1000, size=count, color=gender), alpha=.4)+ 
+    labs(x=NULL, y=NULL,
+         title="Salary",
+         subtitle="By years Exp",
+         caption="Source: somewhere") + 
+    theme_classic() + 
+    theme(plot.title = element_text(hjust=0.5, face="bold"),
+          panel.grid.major.x = element_line(color = "gray", size = .5),panel.grid.major.y = element_line(color = "gray", size = .5),
+          axis.ticks.x=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line.x = element_blank(), axis.line.y=element_blank()
+    )
+
+
+```
+
+## Make Australia / NZ Plot
+
+Chart by experience, gender, and education... 
+
+```{r AUS, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Narrow data down to currencies of AUD / NZ and remove three NAs in education 
+OZ_all <- survey %>% filter(
+  currency == "AUD/NZD", 
+  !is.na(highest_level_of_education_completed))
+
+# Group by education and years experience
+OZ <- OZ_all %>%
+  mutate(gender = if_else(!is.na(gender) & gender=="Man" | !is.na(gender) & gender=="Woman", gender, "Other")) %>%
+  mutate(`Years Experience` = case_when(
+    overall_years_of_professional_experience == "1 year or less" ~ "< 5",
+    overall_years_of_professional_experience == "2 - 4 years" ~ "< 5",
+    overall_years_of_professional_experience == "5-7 years" ~ "5 - 10",
+    overall_years_of_professional_experience == "8 - 10 years" ~ "5 - 10",
+    overall_years_of_professional_experience == "11 - 20 years" ~ "11-20",
+    overall_years_of_professional_experience == "21 - 30 years" ~ "> 20",
+    overall_years_of_professional_experience == "31 - 40 years" ~ "> 20",
+    overall_years_of_professional_experience == "41 years or more" ~ "> 20",
+    TRUE ~ "Other"
+  )) %>%
+  group_by(
+    highest_level_of_education_completed,
+    gender,
+    `Years Experience`) %>% 
+  summarize(count = n(), 
+            percentCount = count/nrow(OZ_all)*100, 
+            avgSal = mean(annual_salary), 
+            minSal=min(annual_salary), 
+            maxSal = max(annual_salary))
+
+OZ <- OZ %>% 
+    pivot_wider(names_from = gender, values_from = avgSal) %>%
+    group_by(highest_level_of_education_completed, `Years Experience`) %>% 
+    summarize(male_avg = mean(Man, na.rm=TRUE), female_avg = mean(Woman, na.rm=TRUE), count=sum(count)) %>%
+    mutate(highest_level_of_education_completed = as_factor(highest_level_of_education_completed)) %>%
+    mutate(`Years Experience` = as_factor(`Years Experience`)) %>%
+    mutate(highest_level_of_education_completed = fct_relevel(highest_level_of_education_completed, 
+        "Professional degree (MD, JD, etc.)",
+        "PhD",
+        "Master's degree", 
+        "College degree", 
+        "Some college", 
+        "High School")) %>% 
+  mutate(`Years Experience` = fct_relevel(`Years Experience`, 
+        "< 5",
+        "5 - 10",
+        "11-20", 
+        "> 20"))
+
+
+OZ %>% mutate(Gender = c(rep("Male",2),rep("Female",2))) %>% ggplot(aes(y=highest_level_of_education_completed, fill=Gender)) + 
+    geom_dumbbell(aes(x=female_avg/1000, xend=male_avg/1000, color=`Years Experience`),
+                  size=1, 
+                  size_x=4, 
+                  size_xend = 4,
+                  colour_x = "deeppink2",
+                  colour_xend = "royalblue1", dot_guide_size=0.25, 
+                  position=position_dodgev(height=0.7)) +
+    labs(x="Salary $000s AUD/NZD", y=NULL,
+         title=" Ask a Manager Salary Survey",
+         subtitle="Australia & New Zealand by Experience & Gender",
+         caption="Source: Ask A Manager Blog, www.askamanager.org\nCreated By: @mwehinger") + 
+    theme_classic() + 
+    scale_colour_manual(values = c("#dfc6c6", "#bfaa78", "#786262", "#2f4858")) +  guides(fill = guide_legend(override.aes = list(size=4, shape=19, color=c("deeppink2", "royalblue1")))) +
+    guides(color = guide_legend(override.aes = list(size=4, shape=15))) +
+    geom_stripes(odd = "#11111111", even = "#00000000") +
+    theme(plot.title = element_text(hjust=0.5, face="bold"),
+          panel.grid.major.x = element_line(color = "gray", size = .5),
+          panel.grid.major.y = element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line.x = element_blank(), 
+          axis.line.y=element_blank(),
+          plot.caption = element_text(hjust = 0)
+    )    
+```
+
+
+## Make USA Plot
+
+What does USA look like? More data points...
+
+```{r USA, echo=FALSE, warning=FALSE, message=FALSE}
+
+library(ggforestplot)
+
+# Narrow data down to currencies of AUD / NZ and remove three NAs in education 
+OZ_all <- survey %>% filter(
+  currency == "USD", 
+  !is.na(highest_level_of_education_completed), annual_salary<3120000)
+
+# Group by education and years experience
+OZ <- OZ_all %>%
+  mutate(gender = if_else(!is.na(gender) & gender=="Man" | !is.na(gender) & gender=="Woman", gender, "Other")) %>%
+  mutate(`Years Experience` = case_when(
+    overall_years_of_professional_experience == "1 year or less" ~ "< 5",
+    overall_years_of_professional_experience == "2 - 4 years" ~ "< 5",
+    overall_years_of_professional_experience == "5-7 years" ~ "5 - 10",
+    overall_years_of_professional_experience == "8 - 10 years" ~ "5 - 10",
+    overall_years_of_professional_experience == "11 - 20 years" ~ "11-20",
+    overall_years_of_professional_experience == "21 - 30 years" ~ "> 20",
+    overall_years_of_professional_experience == "31 - 40 years" ~ "> 20",
+    overall_years_of_professional_experience == "41 years or more" ~ "> 20",
+    TRUE ~ "Other"
+  )) %>%
+  group_by(
+    highest_level_of_education_completed,
+    gender,
+    `Years Experience`) %>% 
+  summarize(count = n(), 
+            percentCount = count/nrow(OZ_all)*100, 
+            avgSal = mean(annual_salary), 
+            minSal=min(annual_salary), 
+            maxSal = max(annual_salary))
+
+OZ <- OZ %>% 
+    pivot_wider(names_from = gender, values_from = avgSal) %>%
+    group_by(highest_level_of_education_completed, `Years Experience`) %>% 
+    summarize(male_avg = mean(Man, na.rm=TRUE), female_avg = mean(Woman, na.rm=TRUE), count=sum(count)) %>%
+    mutate(highest_level_of_education_completed = as_factor(highest_level_of_education_completed)) %>%
+    mutate(`Years Experience` = as_factor(`Years Experience`)) %>%
+    mutate(highest_level_of_education_completed = fct_relevel(highest_level_of_education_completed, 
+        "Professional degree (MD, JD, etc.)",
+        "PhD",
+        "Master's degree", 
+        "College degree", 
+        "Some college", 
+        "High School")) %>% 
+  mutate(`Years Experience` = fct_relevel(`Years Experience`, 
+        "< 5",
+        "5 - 10",
+        "11-20", 
+        "> 20"))
+
+
+OZ %>% mutate(Gender = c(rep("Male",2),rep("Female",2))) %>% ggplot(aes(y=highest_level_of_education_completed, fill=Gender)) + 
+    geom_dumbbell(aes(x=female_avg/1000, xend=male_avg/1000, color=`Years Experience`),
+                  size=1, 
+                  size_x=4, 
+                  size_xend = 4,
+                  colour_x = "deeppink2",
+                  colour_xend = "royalblue1", dot_guide_size=0.25, 
+                  position=position_dodgev(height=0.7)) +
+    labs(x="Salary $000s USD", y=NULL,
+         title=" Ask a Manager Salary Survey",
+         subtitle="USA by Experience & Gender",
+         caption="Source: Ask A Manager Blog, www.askamanager.org\nCreated By: @mwehinger") + 
+    theme_classic() + 
+    scale_colour_manual(values = c("#dfc6c6", "#bfaa78", "#786262", "#2f4858")) +  guides(fill = guide_legend(override.aes = list(size=4, shape=19, color=c("deeppink2", "royalblue1")))) +
+    guides(color = guide_legend(override.aes = list(size=4, shape=15))) +
+    geom_stripes(odd = "#11111111", even = "#00000000") +
+    theme(plot.title = element_text(hjust=0.5, face="bold"),
+          panel.grid.major.x = element_line(color = "gray", size = .5),
+          panel.grid.major.y = element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.ticks.y=element_blank(),
+          axis.line.x = element_blank(), 
+          axis.line.y=element_blank(),
+          plot.caption = element_text(hjust = 0)
+    )  
+```
