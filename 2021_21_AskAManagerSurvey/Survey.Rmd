@@ -22,7 +22,7 @@ survey <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tid
 
 ## Exploring Ask A Manager Salary Survey
 
-This is a chart for TidyTuesday week 21, Ask A Manager Salary Survey results...
+This is a chart for TidyTuesday week 21, Ask A Manager Salary Survey result
 
 
 ```{r explore, echo=FALSE, eval=FALSE}

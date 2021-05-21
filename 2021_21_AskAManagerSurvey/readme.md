@@ -1,7 +1,7 @@
 ## Exploring Ask A Manager Salary Survey
 
 This is a chart for TidyTuesday week 21, Ask A Manager Salary Survey
-results…
+result
 
 ## Make Australia / NZ Plot
 
