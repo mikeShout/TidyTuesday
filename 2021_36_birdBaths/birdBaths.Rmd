@@ -1,0 +1,228 @@
+---
+title: "birdBaths"
+author: "Mike Wehinger"
+date: "23/09/2021"
+output:
+  md_document:
+    variant: markdown_github
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE,
+                      warning=FALSE, 
+                      message = FALSE, 
+                      echo = TRUE, 
+                      dpi = 180, 
+                      fig.width=8, 
+                      fig.height = 5)
+```
+
+## Bird Baths
+
+Following along with Julia Silge for Tidy Tuesday week 36. Build a model to predict if you will see a bird at a birdbath in Australia. 
+
+### Explore Data
+
+Data comes from Tidy Tuesday where citizen scientists from around Australia record if they see certain types of birds.
+
+Data indicates a 1 for when a bird is seen and 0 when there is none. Focus on only the most often seen birds and convert 1 and 0s to a percent. So the probability of seeing the bird. 
+
+```{r exploreData}
+library(tidyverse)
+
+bird_baths <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-08-31/bird_baths.csv')
+
+top_birds <- bird_baths %>% 
+  filter(is.na(urban_rural)) %>% 
+  arrange(-bird_count) %>% 
+  slice_max(bird_count, n=15) %>% 
+  pull(bird_type)
+
+bird_parsed <- bird_baths %>% 
+  filter(
+    !is.na(urban_rural),
+    bird_type %in% top_birds) %>%
+  group_by(urban_rural, bird_type) %>%
+  summarize(bird_count = mean(bird_count), .groups = "drop")
+
+p1 <- bird_parsed %>% 
+  ggplot(aes(x=bird_count, y=bird_type)) + 
+  geom_segment(alpha=.7, color="gray70", size=1.5,
+               data = bird_parsed %>% 
+                 pivot_wider(
+                   names_from = urban_rural, 
+                   values_from = bird_count), 
+               aes(x=Rural, xend=Urban, y=bird_type, yend =bird_type)) +
+  geom_point(aes(color=urban_rural), size=3) + 
+  scale_x_continuous(labels = scales::percent) + 
+  labs(x="probability of seeing a bird", y=NULL, color=NULL)
+
+p1
+```
+
+### Prepare Data For Modelling
+
+Create a data frame where the bird_count is the outcome to predict. The urban/rural and bird_type are the factors used to make the prediction. 
+
+The data types are converted to factors
+
+```{r prepData}
+
+bird_df <- bird_baths %>% 
+  filter(
+    !is.na(urban_rural),
+    bird_type %in% top_birds) %>%
+  mutate(bird_count = if_else(bird_count>0, "bird", "no bird")) %>%
+  mutate_if(is.character, as.factor)
+
+```
+
+
+### Build Model
+
+Data budget - split data to training and testing. For the training set, create re-sampling folds. 
+
+
+```{r buildM, echo=FALSE}
+
+library(tidymodels)
+
+set.seed(123)
+
+bird_split <- initial_split(bird_df, strata = bird_count)
+bird_train <- training(bird_split)
+bird_test <- testing(bird_split)
+
+set.seed(234)
+bird_folds <- vfold_cv(bird_train, strata = bird_count)
+
+```
+
+We will use a basic logistic regression. Use a recipe to set up the feature engineering. 
+
+The formula sets the outcome and the features. Then, we pipe that to data pre-processing steps, where we convert the predicting factors to dummy variables (ones and zeros)
+
+Save these elements into a workflow. The workflow holds all of the steps into an object. 
+
+```{r setupM, echo=FALSE}
+
+glm_spec <- logistic_reg()
+
+#declare outcome and features...
+rec_basic <- recipe(bird_count ~ urban_rural + bird_type, data=bird_train) %>% 
+  step_dummy(all_nominal_predictors())
+
+wf_basic <- workflow(rec_basic, glm_spec)
+
+```
+
+Fit model to training data re-sample folds. The fit_resamples() function 'runs' the fit using the work-flow
+
+```{r trainM, echo=FALSE}
+
+library(doParallel)
+
+registerDoParallel(2) # set uo dual core processing (I need a better PC)
+ctrl_preds <- control_resamples(save_pred = TRUE)
+rs_basic <- fit_resamples(wf_basic, bird_folds, control = ctrl_preds)
+
+
+```
+
+
+The augment() function adds two things together, in this case adding the predicted value from training fit to the bird_coutn data-frame.
+
+Then plot the roc curve to visualize how well (or not well) the predictions are
+
+```{r evalM, echo=FALSE}
+
+augment(rs_basic) %>%
+  roc_curve(bird_count, .pred_bird) %>%
+  autoplot()
+
+```
+
+Try to improve the model. We know the relationship between birds seen and their type and rural/urban indicators are not independent. Therefore, we will add interactions between bird type and urban/rural data.
+
+Use a tidymodels function to modify the original recipe, step_interact(). 
+
+Make a new work-flow with the interact recipe and fit the re-samples 
+
+and see how that impacts how the model predicts. 
+
+
+```{r interactions, echo=FALSE}
+
+rec_interact <- rec_basic %>%
+  step_interact(~ starts_with("urban_rural"):starts_with("bird_type"))
+
+wf_interact <- workflow(rec_interact, glm_spec) 
+rs_interact <- fit_resamples(wf_interact, bird_folds, control = ctrl_preds)
+
+augment(rs_interact) %>%
+  roc_curve(bird_count, .pred_bird) %>%
+  autoplot()
+
+```
+
+### Fit model on test data
+
+Fit the workflow to the training data. With this fit model, you can do a lot of things, like predict based on the training data 
+
+```{r evaluate, echo=FALSE}
+
+bird_fit <- fit(wf_interact, bird_train)
+
+predict(bird_fit, bird_test)
+
+```
+
+Create new bird data to predict. 
+
+You can use the augment() function again to put the model predictions back into the new bird data.
+
+augment() and predict() are great functions to use and know about
+
+The chart below adds the confidence intervals along with the predictions. 
+
+```{r newData, echo=FALSE}
+
+new_bird_data <- tibble(bird_type = top_birds) %>%
+  crossing(urban_rural = c("Urban", "Rural"))
+
+augment(bird_fit, new_bird_data)        
+
+predict(bird_fit, new_bird_data, type="conf_int")
+
+bird_preds <- 
+  augment(bird_fit, new_bird_data) %>%
+  bind_cols(
+    predict(bird_fit, new_bird_data, type="conf_int")
+  )
+
+p2 <- bird_preds %>% 
+  ggplot(aes(.pred_bird, bird_type, color=urban_rural)) +
+  geom_errorbar(
+    aes(
+      xmin = .pred_lower_bird,
+      xmax = .pred_upper_bird),
+    width=.4, size=1.2, alpha=.5) + 
+  geom_point(size=2.5)+
+  scale_x_continuous(labels = scales::percent) + 
+  labs(x="Predicted probability of seeing a bird", y=NULL, color=NULL)
+
+p2
+
+```
+
+Display the original data exploration chart next to the predicted chart...
+
+```{r patch, echo=FALSE}
+library(patchwork)
+p1 + p2
+
+```
+
+The End
