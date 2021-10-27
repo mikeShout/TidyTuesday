@@ -5,7 +5,7 @@ women and men
 
 The final chart:
 
-! \[ Ultramarathon \] (Ultramarathons.png)
+![Ultramarathon](Ultramarathons.png)
 
 ### Get Data
 
