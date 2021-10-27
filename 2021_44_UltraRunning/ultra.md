@@ -1,35 +1,19 @@
----
-title: "Ultrarunning Data Visualization"
-author: "Mike Wehinger"
-date: "26/10/2021"
-output:
-  md_document:
-    variant: markdown_github
-  html_document:
-    df_print: paged
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(warning=FALSE, 
-                      message = FALSE, 
-                      echo = TRUE)
-```
-
 ## Objective
 
-Create charts to explore and compare ultramarathon finishing times for women and men  
+Create charts to explore and compare ultramarathon finishing times for
+women and men
 
 The final chart:
 
-![ Ultramarathon ](Ultramarathons.png)
+![Ultramarathon](Ultramarathons.png)
 
 ### Get Data
 
-The data and its explanation are available through the TidyTuesday GitHub repository here: [https://github.com/rfordatascience/tidytuesday](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-10-26/readme.md)
+The data and its explanation are available through the TidyTuesday
+GitHub repository here:
+[https://github.com/rfordatascience/tidytuesday](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-10-26/readme.md)
 
-
-```{r Data_Get}
-
+``` r
 library(tidyverse)
 library(lubridate) # Handling Dates
 library(ggalt) #Dumbbell Chart
@@ -46,15 +30,14 @@ race <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidyt
 # Combine participant and race data...
 
 races <- race %>% left_join(ultra_rankings, by = "race_year_id")
-
 ```
 
 ### Prepare Data
 
-Reshape the data into a tidy list of races and the finishing times for men and women
+Reshape the data into a tidy list of races and the finishing times for
+men and women
 
-```{r Data_Prep}
-
+``` r
 race_data <- races %>% 
   drop_na() %>% #Remove records where participants had no results (DNF?)
   
@@ -86,17 +69,16 @@ race_data <- races %>%
     participant_count = participant_count_M + participant_count_W,
     faster_W = if_else(average_time_W < average_time_M, 1,0),
     percent_W = participant_count_W / participant_count) %>% ungroup()
-
 ```
 
 ### Create Charts
 
 ##### Main Chart
 
-Create a chart that highlights races where the average finish time for women is faster than men 
+Create a chart that highlights races where the average finish time for
+women is faster than men
 
-```{r main_chart}
-
+``` r
 # Make a copy of the data for the chart...
 race_data_a <- race_data %>%
   mutate_at(vars(race_year_id), factor) %>%
@@ -161,10 +143,9 @@ main_chart <- race_data_a %>%
 
 ##### Sub-Charts
 
-Create 'sub-charts' showing individual races  of note
+Create ‘sub-charts’ showing individual races of note
 
-```{r sub_chart}
-
+``` r
 wser <- race %>%
   left_join(ultra_rankings, by = "race_year_id") %>% 
   filter(race=="Western States Endurance Run", year(date)>2016) %>% 
@@ -250,8 +231,7 @@ utmb <- race %>%
 
 Use Patchwork to combine and annotate charts
 
-```{r combine_chart}
-
+``` r
 final <- main_chart | (and / utmb / wser)
 
 final + 
@@ -282,15 +262,15 @@ final +
           margin = margin(5,0,5,0)), 
         
         plot.background = element_rect(fill = "#E8E6E6", color = NA)))
-
 ```
+
+![](ultra_files/figure-markdown_github/combine_chart-1.png)
 
 ## The End
 
+Other exploratory charts…
 
-Other exploratory charts...
-
-```{r ref}
+``` r
 races <- race %>% left_join(ultra_rankings, by = "race_year_id") %>% drop_na()
 
 races %>%
@@ -311,12 +291,11 @@ races %>%
         x="Mean finishing time (hours)"
     )+
     theme_minimal()
-
 ```
 
-```{r explore_data}
+![](ultra_files/figure-markdown_github/ref-1.png)
 
-
+``` r
 # Explore the data...
 
 race_data %>% 
@@ -329,7 +308,11 @@ race_data %>%
       x="Faster Women = 1"
     )+
   theme_minimal()
+```
 
+![](ultra_files/figure-markdown_github/explore_data-1.png)
+
+``` r
 race_data %>% 
   ungroup() %>% 
   mutate(race = fct_reorder(race, average_time_W)) %>% 
@@ -348,7 +331,11 @@ race_data %>%
       x=""
     ) +
   theme_minimal()
+```
 
+![](ultra_files/figure-markdown_github/explore_data-2.png)
+
+``` r
 race_data %>% 
   ungroup() %>% filter(year(date)==2021) %>% 
   mutate(race = fct_reorder(race, average_time_W)) %>% 
@@ -367,7 +354,11 @@ race_data %>%
       x=""
     ) +
   theme_minimal()
+```
 
+![](ultra_files/figure-markdown_github/explore_data-3.png)
+
+``` r
 race_data %>% 
   ungroup() %>% 
   ggplot(aes(x=average_time_W, y=elevation_gain)) + 
@@ -380,6 +371,6 @@ race_data %>%
       x="Avg. Finish Time (hours)"
     ) +
   theme_minimal()
-
-
 ```
+
+![](ultra_files/figure-markdown_github/explore_data-4.png)
