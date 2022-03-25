@@ -1,0 +1,195 @@
+---
+title: "BabyNames"
+author: "Mike Wehinger"
+date: '2022-03-21'
+output: html_document
+---
+
+```{r setup, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Baby Names
+
+Exploring Baby Names for TidyTuesday
+
+```{r SetUp, warning=FALSE}
+
+library(tidyverse)
+library(patchwork)
+library(showtext)
+#font_add_google("Schoolbell", "bell")
+font_add_google("Patrick Hand")
+showtext_auto()
+
+#https://cran.rstudio.com/web/packages/showtext/vignettes/introduction.html
+
+# Load baby names data
+
+babynames <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-03-22/babynames.csv')
+
+```
+
+## Unique Names Explorer
+
+There is more variability in female names vs male
+
+```{r uNames, warning=FALSE, echo=FALSE, message=FALSE, error=FALSE}
+
+# Births By Year
+babynames %>% group_by(year,sex) %>% summarize(births = sum(n), unique_names=n()) %>% mutate(proportion_unique_names = unique_names/births) %>% ggplot(aes(x=year, y=births, color=sex)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::comma)+ ggtitle("Births By Year")
+
+# Unique Names By Year
+babynames %>% group_by(year,sex) %>% summarize(births = sum(n), unique_names=n()) %>% mutate(proportion_unique_names = unique_names/births) %>% ggplot(aes(x=year, y=unique_names, color=sex)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::comma) + ggtitle("Unique Names By Year")
+
+# Proportion of Unique Names each year
+babynames %>% group_by(year,sex) %>% summarize(births = sum(n), unique_names=n()) %>% mutate(proportion_unique_names = unique_names/births) %>% ggplot(aes(x=year, y=proportion_unique_names, color=sex)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::percent)+ ggtitle("Proportion Unique Names By Year")
+
+
+```
+
+## Specific name Explorer
+
+Checking out different names
+
+```{r SpecNames, warning=FALSE, echo=FALSE, message=FALSE, error=FALSE}
+
+# Mikes By Year
+babynames %>% filter(name=="Mike" | name=="Michael") %>% group_by(year,name) %>% summarize(births = sum(n)) %>% ggplot(aes(x=year, y=births, color=name)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::comma)+ ggtitle("Mikes By Year")
+
+babynames %>% filter(name=="Lily" | name=="Lilly") %>% group_by(year,name) %>% summarize(births = sum(n)) %>% ggplot(aes(x=year, y=births, color=name)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::comma)+ ggtitle("Lily By Year")
+
+babynames %>% filter(name=="Dean" | name=="Alana") %>% group_by(year,name) %>% summarize(births = sum(n)) %>% ggplot(aes(x=year, y=births, color=name)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::comma)+ ggtitle("Lily By Year")
+
+```
+
+
+## Names & Gender
+
+Checking out different names
+
+```{r gender, warning=FALSE, echo=FALSE, message=FALSE, error=FALSE}
+
+babynames %>% group_by(year,sex,name) %>% summarize(births = sum(n)) %>% pivot_wider(names_from = sex, values_from = births) %>% mutate(F = ifelse(is.na(F), 0, F),M = ifelse(is.na(M), 0, M), both = ifelse(F>0 & M > 0,1,0)) %>% group_by(year) %>% summarize(births=sum(F) + sum(M), both=sum(both), PercentBoth = both / births) %>% ggplot(aes(x=year, y=PercentBoth)) + geom_line(size=1.5) + scale_y_continuous(labels = scales::percent)+ ggtitle("Proportion of Names for noth genders")
+
+
+
+babynames %>% group_by(sex,name) %>% summarize(births = sum(n)) %>% pivot_wider(names_from = sex, values_from = births) %>% drop_na() %>% mutate(Total = F+M)  %>% pivot_longer(F:M, names_to = "Gender", values_to = "birth_count") %>% mutate(Percent=birth_count/Total, mid=Percent-.5,birth_count = ifelse(Gender=="F",-1*birth_count,birth_count) ) %>% filter(abs(mid)<=.1 & Total >20000) %>% ggplot(aes(x=reorder(name,Total), y=birth_count, fill=Gender)) + geom_bar(stat="identity", width=.6) + scale_y_continuous(breaks=c(.1,.5,.0)) + geom_text(aes(label = abs(birth_count), hjust = 1)) + coord_flip()
+
+babynames %>% filter(year>1960) %>% group_by(sex,name) %>% summarize(births = sum(n)) %>% pivot_wider(names_from = sex, values_from = births) %>% drop_na() %>% mutate(Total = F+M)  %>% pivot_longer(F:M, names_to = "Gender", values_to = "birth_count") %>% mutate(Percent=birth_count/Total, mid=Percent-.5,birth_count = ifelse(Gender=="F",-1*birth_count,birth_count) ) %>% filter(abs(mid)<=.1 & Total >20000) %>% ggplot(aes(x=reorder(name,Total), y=birth_count, fill=Gender)) + geom_bar(stat="identity", width=.6) + scale_y_continuous(breaks=c(.1,.5,.0)) + geom_text(aes(label = abs(birth_count)/1000, hjust = 1)) + coord_flip()
+
+```
+
+## Names & Gender Walk
+
+Checking out different names
+
+```{r genderWalk, warning=FALSE, echo=FALSE, message=FALSE, error=FALSE}
+
+# Count Baby names by gender for the last 40 years
+
+gender_babynames <- babynames %>% 
+  filter(year > 1976) %>% 
+  select(-prop) %>% 
+  pivot_wider(names_from = sex, values_from = n, values_fill = 0) %>% 
+  mutate(
+    FM=F+M, 
+    PF = F/(FM),
+    'Gender Neutral' = ifelse(PF <=.6 & PF >=.4, 1,0),
+    'Predominately Male' = ifelse(PF <.4, 1,0),
+    'Predominately Female' = ifelse(PF >.6, 1,0))
+
+gender_babynames
+
+# Gender neutral names over time
+gender_babynames %>% 
+    group_by(year) %>%
+    summarize(
+        both_genders = sum(`Gender Neutral`), 
+        all_names = sum(`Gender Neutral`) + sum(`Predominately Male`) + sum(`Predominately Female`)) %>%
+  ggplot(aes(x=year, y=both_genders)) + 
+  geom_area(fill="#A53D44") + theme_void() + 
+  labs(title = "Gender Neutral Names By Year") +
+  theme(
+        axis.text.y = element_text(size = 26, hjust = 1, family = "Patric Hand"),
+        plot.title = element_text(family = "Patric Hand", face="italic", size=26, hjust=.5),
+        plot.background = element_rect(fill = "#FBF1E7"))
+
+# Create a summary for the whole period period
+intro <- gender_babynames %>% 
+    pivot_longer('Gender Neutral':`Predominately Female`, names_to = "Gender_Name", values_to = "Count") %>%
+    group_by(Gender_Name) %>% 
+    summarize(Count = sum(Count)) %>% 
+    ggplot(aes(x=reorder(Gender_Name, +Count), y=Count)) +
+    geom_col(fill="#df912b") + 
+    geom_text(aes(
+        label = paste0(round(Count/1000,0), "k")), 
+        hjust = 1.2, size=12, color="grey10") + 
+    theme_void() + 
+    coord_flip() +
+    labs(title = "Count of Name by Gender",
+         subtitle = "40 Years, 1977-2017",
+         caption = "") +
+    theme(
+        axis.text.y = element_text(size = 26, hjust = 1, family = "Patric Hand"),
+        plot.title = element_text(family = "Patric Hand", face="italic", size=26, hjust=.5),
+        plot.subtitle = element_text(family = "Patric Hand", size=20, hjust=.5,margin = margin(5, 0, 10, 0)),
+        legend.position = "none",
+        plot.caption = element_text(family = "Patric Hand", size=20),
+        plot.background = element_rect(fill = "#eee1dd"))
+
+
+# % of names that are gender neutral
+gender_babynames %>% 
+    group_by(year) %>%
+    summarize(
+        both_genders = sum(`Gender Neutral`), 
+        all_names = sum(`Gender Neutral`) + sum(`Predominately Male`) + sum(`Predominately Female`)) %>% mutate(pGenderNeutral = both_genders/all_names) %>%
+    ggplot(aes(x=year, y=pGenderNeutral)) + 
+    geom_area(fill="#A53D44") + theme_void() + 
+    labs(title = "% Gender Neutral Names By Year") +
+    theme(
+        axis.text.y = element_text(size = 26, hjust = 1, family = "Patric Hand"),
+        plot.title = element_text(family = "Patric Hand", face="italic", size=26, hjust=.5),
+        plot.background = element_rect(fill = "#FBF1E7"))
+
+
+gender_neutral_babynames <- 
+  gender_babynames %>% 
+  filter(`Gender Neutral`==1) %>% 
+  group_by(name) %>% 
+  summarize(F=sum(F), M=sum(M), FM=F+M) %>%
+  pivot_longer(F:M, names_to = "Gender", values_to = "birth_count") %>%
+  mutate(
+        Percent=birth_count/FM, 
+        mid=Percent-.5,
+        birth_count = ifelse(Gender=="F",-1*birth_count,birth_count) )
+
+gender_neutral_babynames
+
+main <- gender_neutral_babynames %>% filter(FM>10000) %>% ggplot(aes(x=reorder(name,FM), y=birth_count, fill=Gender)) + 
+    geom_bar(stat="identity", width=.9, alpha=.7) + 
+    scale_fill_manual(
+        name = "Gender:",
+        labels = c("Female", "Male"), 
+        values = c("#a93294", "#5549f5")) + 
+    theme_void() +
+    geom_text(aes(
+        label = paste0(round(abs(birth_count)/1000,0), "k"), 
+        hjust = ifelse(birth_count <=0,-.5,1.2 )), size=8, color="grey30") + 
+    labs(x = "Year",
+         title = "Popular Gender Neutral Baby Names",
+         subtitle = "40 Years, 1977-2017",
+         caption = "Neutral baby names are those given equally to male and female babies") +
+    coord_flip() + 
+    theme(
+        axis.text.y = element_text(size = 26, hjust = 1, family = "Patric Hand"),
+        plot.title = element_text(family = "Patric Hand", face="italic", size=26, hjust=.5),
+        plot.subtitle = element_text(family = "Patric Hand", size=20, hjust=.5,margin = margin(5, 0, 10, 0)),
+        plot.caption = element_text(family = "Patric Hand", size=20),
+        legend.position = "top",legend.text = element_text(family = "Patric Hand", size=20),legend.title = element_text(family = "Patric Hand", size=20),plot.background = element_rect(fill = "#eee1dd"))
+
+
+(intro | main )
+
+```
