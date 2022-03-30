@@ -3,6 +3,8 @@
 Looking at the 2019 - 2020 season (because the latest data available was
 disrupted by COVID).
 
+![CollegiateSports](CollegiateSportsChart.png)
+
 ``` r
 library(tidyverse)
 library(grid)

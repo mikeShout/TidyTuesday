@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Looking at the 2019 - 2020 season (because the latest data available was disrupted by COVID). 
 
+![ CollegiateSports ](CollegiateSportsChart.png)
 
 ```{r cars, warning=FALSE, message=FALSE}
   
