@@ -1,9 +1,4 @@
-<style>
-.plot-shadow {
-    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.3);
-    border-radius: 5px;
-}
-</style>
+# English Monarchs and Marriages
 
 TidyTuesday 2024 Week 34
 
@@ -13,13 +8,15 @@ TidyTuesday 2024 Week 34
 english_monarchs <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-08-20/english_monarchs_marriages_df.csv')
 ```
 
-    ## Rows: 83 Columns: 5
-    ## ── Column specification ────────────────────────────────────────────────────────
-    ## Delimiter: ","
-    ## chr (5): king_name, king_age, consort_name, consort_age, year_of_marriage
-    ## 
-    ## ℹ Use `spec()` to retrieve the full column specification for this data.
-    ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+```         
+## Rows: 83 Columns: 5
+## ── Column specification ────────────────────────────────────────────────────────
+## Delimiter: ","
+## chr (5): king_name, king_age, consort_name, consort_age, year_of_marriage
+## 
+## ℹ Use `spec()` to retrieve the full column specification for this data.
+## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+```
 
 ``` r
 # Data cleaning...
@@ -75,7 +72,9 @@ english_monarchs %>%
     theme_minimal()
 ```
 
-    ## `geom_smooth()` using formula 'y ~ x'
+```         
+## `geom_smooth()` using formula 'y ~ x'
+```
 
 ![](MonarchMarriages_files/figure-markdown_github/Monarch_charts-2.png)
 
@@ -168,4 +167,4 @@ english_monarchs %>% drop_na() %>%
     )
 ```
 
-<img src="MonarchMarriages_files/figure-markdown_github/Monarch_final_chart-1.png" class="plot-shadow" style="display: block; margin: auto;" />
+<img src="MonarchMarriages_files/figure-markdown_github/Monarch_final_chart-1.png" class="plot-shadow" style="display: block; margin: auto;"/>
